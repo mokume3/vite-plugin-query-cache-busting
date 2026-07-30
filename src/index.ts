@@ -1,5 +1,5 @@
 import { Ansis } from 'ansis'
-import type { Plugin, ResolvedConfig, UserConfig } from 'vite'
+import type { Plugin, ResolvedConfig, Rollup, UserConfig } from 'vite'
 import { version as viteVersion } from 'vite'
 
 import { PLUGIN_NAME } from './constants'
@@ -16,9 +16,9 @@ import {
   unverifiableFileNamePatternIssue,
   userHookReturnedObjectIssue,
 } from './guards'
-import { createPalette, formatFindings, formatIssue, formatSummary } from './logger'
+import { createPalette, formatFindings, formatIssue, formatSummary, type Palette } from './logger'
 import { rewriteManifest } from './manifest'
-import { normalizeOptions, type Options } from './options'
+import { normalizeOptions, type Options, type VerifyMode } from './options'
 import { rewriteImports } from './rewrite-imports'
 import { appendQuery, buildQuery, joinUrlSegments } from './url'
 import { findMissingQuery, isTrackedName, type OutputFile } from './verify'
@@ -27,6 +27,7 @@ import { resolveVersion } from './version'
 export type { Options, VerifyMode } from './options'
 
 type RenderBuiltUrl = NonNullable<NonNullable<UserConfig['experimental']>['renderBuiltUrl']>
+type RenderBuiltUrlContext = Parameters<RenderBuiltUrl>[1]
 
 const DEFAULT_MANIFEST_FILE_NAME = '.vite/manifest.json'
 const DEFAULT_ASSETS_DIR = 'assets'
@@ -34,27 +35,14 @@ const DEFAULT_ASSETS_DIR = 'assets'
 export function queryCacheBusting(options: Options = {}): Plugin {
   const resolved = normalizeOptions(options)
   const palette = createPalette(new Ansis())
-
   let query = ''
   let config: ResolvedConfig
   let userRenderBuiltUrl: RenderBuiltUrl | undefined
   let fileNames: FileNamesDecision = { patch: {}, hashed: [], unverifiable: [] }
   let wrapperCalled = false
-
   const renderBuiltUrl: RenderBuiltUrl = (filename, context) => {
     wrapperCalled = true
-
-    if (context.ssr) return userRenderBuiltUrl?.(filename, context)
-
-    const fromUserHook = userRenderBuiltUrl?.(filename, context)
-    if (typeof fromUserHook === 'object' && fromUserHook !== null) {
-      throw new Error(formatIssue(palette, 'error', userHookReturnedObjectIssue()))
-    }
-
-    const url =
-      typeof fromUserHook === 'string' ? fromUserHook : joinUrlSegments(config.base, filename)
-
-    return appendQuery(url, query)
+    return resolveBuiltUrl(palette, config, userRenderBuiltUrl, query, filename, context)
   }
 
   return {
@@ -65,17 +53,7 @@ export function queryCacheBusting(options: Options = {}): Plugin {
     async config(userConfig) {
       userRenderBuiltUrl = userConfig.experimental?.renderBuiltUrl
       query = buildQuery(resolved.key, await resolveVersion(resolved.version))
-
-      const userOutput = userConfig.build?.rollupOptions?.output
-      if (Array.isArray(userOutput)) {
-        throw new Error(formatIssue(palette, 'error', multipleOutputsIssue()))
-      }
-
-      fileNames = decideFileNames(
-        (userOutput ?? {}) as Record<string, unknown>,
-        userConfig.build?.assetsDir ?? DEFAULT_ASSETS_DIR,
-      )
-
+      fileNames = resolveFileNames(palette, userConfig)
       return {
         build: { rollupOptions: { output: fileNames.patch } },
         experimental: { renderBuiltUrl },
@@ -84,119 +62,221 @@ export function queryCacheBusting(options: Options = {}): Plugin {
 
     configResolved(resolvedConfig) {
       config = resolvedConfig
-
-      const { errors, warnings } = collectConfigIssues({
-        base: resolvedConfig.base,
-        isLib: Boolean(resolvedConfig.build.lib),
-        chunkImportMap: Boolean(
-          (resolvedConfig.build as { chunkImportMap?: unknown }).chunkImportMap,
-        ),
-        viteMajor: parseMajor(viteVersion),
-      })
-
-      if (resolvedConfig.experimental.renderBuiltUrl !== renderBuiltUrl) {
-        errors.push(hijackedRenderBuiltUrlIssue())
-      }
-
-      if (fileNames.hashed.length > 0) {
-        errors.push(hashedFileNamePatternIssue(fileNames.hashed))
-      }
-
-      if (fileNames.unverifiable.length > 0) {
-        warnings.push(unverifiableFileNamePatternIssue(fileNames.unverifiable))
-      }
-
-      for (const warning of warnings) {
-        resolvedConfig.logger.warn(formatIssue(palette, 'warn', warning))
-      }
-
-      if (errors.length > 0) {
-        throw new Error(errors.map((issue) => formatIssue(palette, 'error', issue)).join('\n\n'))
-      }
+      applyResolvedConfigIssues(palette, resolvedConfig, renderBuiltUrl, fileNames)
     },
 
-    // Vite の vite:build-import-analysis は __vitePreload の依存配列を generateBundle で
-    // 解決する。その解決は動的 import の指定子を手がかりに bundle のキーを引くため、
-    // 指定子を先に書き換えると依存配列が空になり、遅延チャンクの CSS がどこからも
-    // 参照されなくなる。order: 'post' で Vite の処理が終わった後に書き換える。
+    // vite:build-import-analysis の __vitePreload 依存配列解決（指定子文字列で bundle を
+    // 引く）より後に import を書き換える必要があるため order: 'post' にしている。
     generateBundle: {
       order: 'post',
       handler(outputOptions, bundle) {
         if (this.environment?.config.consumer === 'server') return
-
-        const manifestOption = config.build.manifest
-        const manifestFileName =
-          typeof manifestOption === 'string' ? manifestOption : DEFAULT_MANIFEST_FILE_NAME
-
-        const hasRenderableAssets = Object.values(bundle).some(
-          (output) =>
-            output.type === 'asset' &&
-            isTrackedName(output.fileName) &&
-            !output.fileName.endsWith('.json'),
-        )
-
-        if (!wrapperCalled && hasRenderableAssets) {
-          throw new Error(formatIssue(palette, 'error', apiDriftIssue()))
-        }
-
-        if (outputOptions.format === 'es') {
-          for (const output of Object.values(bundle)) {
-            if (output.type !== 'chunk') continue
-
-            const result = rewriteImports(output.code, query, output.fileName)
-            if (result !== null) output.code = result.code
-          }
-        } else {
-          config.logger.warn(
-            formatIssue(palette, 'warn', nonEsFormatIssue(String(outputOptions.format))),
-          )
-        }
-
-        if (manifestOption === true || typeof manifestOption === 'string') {
-          const manifest = bundle[manifestFileName]
-          if (manifest === undefined || manifest.type !== 'asset') {
-            throw new Error(formatIssue(palette, 'error', manifestMissingIssue(manifestFileName)))
-          }
-          manifest.source = rewriteManifest(String(manifest.source), query)
-        }
-
-        const files: OutputFile[] = []
-        const referenceNames: string[] = []
-
-        for (const output of Object.values(bundle)) {
-          if (output.fileName === manifestFileName) continue
-
-          referenceNames.push(output.fileName)
-
-          const content =
-            output.type === 'chunk'
-              ? output.code
-              : typeof output.source === 'string'
-                ? output.source
-                : null
-
-          if (content !== null) files.push({ fileName: output.fileName, content })
-        }
-
-        if (resolved.verify !== 'off') {
-          const findings = findMissingQuery(files, referenceNames, query)
-
-          if (findings.length > 0) {
-            const level = resolved.verify === 'error' ? 'error' : 'warn'
-            const message = formatFindings(palette, level, findings)
-
-            if (level === 'error') throw new Error(message)
-            config.logger.warn(message)
-          }
-        }
-
-        config.logger.info(formatSummary(palette, query, countByExtension(files, query)))
+        const { manifestOption, manifestFileName } = resolveManifestTarget(config)
+        detectApiDrift(palette, bundle, wrapperCalled)
+        rewriteChunkImports(palette, config, bundle, outputOptions, query)
+        rewriteManifestOutput(palette, bundle, manifestOption, manifestFileName, query)
+        const { files, referenceNames } = collectOutputFiles(bundle, manifestFileName)
+        verifyOutput(palette, config, resolved.verify, files, referenceNames, query)
+        logSummary(palette, config, files, query)
       },
     },
   }
 }
 
 export default queryCacheBusting
+
+/** config.build.manifest から、書き換え対象の manifest ファイル名を決める */
+function resolveManifestTarget(config: ResolvedConfig): {
+  manifestOption: ResolvedConfig['build']['manifest']
+  manifestFileName: string
+} {
+  const manifestOption = config.build.manifest
+  const manifestFileName =
+    typeof manifestOption === 'string' ? manifestOption : DEFAULT_MANIFEST_FILE_NAME
+  return { manifestOption, manifestFileName }
+}
+
+/** build.rollupOptions.output の形から、出力ファイル名の書き換え方針を決める */
+function resolveFileNames(palette: Palette, userConfig: UserConfig): FileNamesDecision {
+  const userOutput = userConfig.build?.rollupOptions?.output
+  if (Array.isArray(userOutput)) {
+    throw new Error(formatIssue(palette, 'error', multipleOutputsIssue()))
+  }
+
+  return decideFileNames(
+    (userOutput ?? {}) as Record<string, unknown>,
+    userConfig.build?.assetsDir ?? DEFAULT_ASSETS_DIR,
+  )
+}
+
+/** configResolved 時点の設定値から問題を集め、警告ログと例外に変換する */
+function applyResolvedConfigIssues(
+  palette: Palette,
+  resolvedConfig: ResolvedConfig,
+  renderBuiltUrl: RenderBuiltUrl,
+  fileNames: FileNamesDecision,
+): void {
+  const { errors, warnings } = collectConfigIssues({
+    base: resolvedConfig.base,
+    isLib: Boolean(resolvedConfig.build.lib),
+    chunkImportMap: Boolean((resolvedConfig.build as { chunkImportMap?: unknown }).chunkImportMap),
+    viteMajor: parseMajor(viteVersion),
+  })
+
+  if (resolvedConfig.experimental.renderBuiltUrl !== renderBuiltUrl) {
+    errors.push(hijackedRenderBuiltUrlIssue())
+  }
+
+  if (fileNames.hashed.length > 0) {
+    errors.push(hashedFileNamePatternIssue(fileNames.hashed))
+  }
+
+  if (fileNames.unverifiable.length > 0) {
+    warnings.push(unverifiableFileNamePatternIssue(fileNames.unverifiable))
+  }
+
+  for (const warning of warnings) {
+    resolvedConfig.logger.warn(formatIssue(palette, 'warn', warning))
+  }
+
+  if (errors.length > 0) {
+    throw new Error(errors.map((issue) => formatIssue(palette, 'error', issue)).join('\n\n'))
+  }
+}
+
+/** 既存の renderBuiltUrl 呼び出し結果を踏まえて、query 付きの URL を組み立てる */
+function resolveBuiltUrl(
+  palette: Palette,
+  config: ResolvedConfig,
+  userRenderBuiltUrl: RenderBuiltUrl | undefined,
+  query: string,
+  filename: string,
+  context: RenderBuiltUrlContext,
+): ReturnType<RenderBuiltUrl> {
+  if (context.ssr) return userRenderBuiltUrl?.(filename, context)
+
+  const fromUserHook = userRenderBuiltUrl?.(filename, context)
+  if (typeof fromUserHook === 'object' && fromUserHook !== null) {
+    throw new Error(formatIssue(palette, 'error', userHookReturnedObjectIssue()))
+  }
+
+  const url =
+    typeof fromUserHook === 'string' ? fromUserHook : joinUrlSegments(config.base, filename)
+
+  return appendQuery(url, query)
+}
+
+/** renderBuiltUrl ラッパーが一度も呼ばれていないのにアセットが出力されていないかを検査する */
+function detectApiDrift(
+  palette: Palette,
+  bundle: Rollup.OutputBundle,
+  wrapperCalled: boolean,
+): void {
+  const hasRenderableAssets = Object.values(bundle).some(
+    (output) =>
+      output.type === 'asset' &&
+      isTrackedName(output.fileName) &&
+      !output.fileName.endsWith('.json'),
+  )
+
+  if (!wrapperCalled && hasRenderableAssets) {
+    throw new Error(formatIssue(palette, 'error', apiDriftIssue()))
+  }
+}
+
+/** ES 形式の出力に限り、チャンク間 import の指定子に query を書き換える */
+function rewriteChunkImports(
+  palette: Palette,
+  config: ResolvedConfig,
+  bundle: Rollup.OutputBundle,
+  outputOptions: Rollup.NormalizedOutputOptions,
+  query: string,
+): void {
+  if (outputOptions.format === 'es') {
+    for (const output of Object.values(bundle)) {
+      if (output.type !== 'chunk') continue
+
+      const result = rewriteImports(output.code, query, output.fileName)
+      if (result !== null) output.code = result.code
+    }
+  } else {
+    config.logger.warn(formatIssue(palette, 'warn', nonEsFormatIssue(String(outputOptions.format))))
+  }
+}
+
+/** manifest ファイルの中身に query を書き加える（manifest が有効な場合のみ） */
+function rewriteManifestOutput(
+  palette: Palette,
+  bundle: Rollup.OutputBundle,
+  manifestOption: ResolvedConfig['build']['manifest'],
+  manifestFileName: string,
+  query: string,
+): void {
+  if (manifestOption !== true && typeof manifestOption !== 'string') return
+
+  const manifest = bundle[manifestFileName]
+  if (manifest === undefined || manifest.type !== 'asset') {
+    throw new Error(formatIssue(palette, 'error', manifestMissingIssue(manifestFileName)))
+  }
+  manifest.source = rewriteManifest(String(manifest.source), query)
+}
+
+/** verify とサマリログのために、manifest を除いた出力ファイルと参照名の一覧を集める */
+function collectOutputFiles(
+  bundle: Rollup.OutputBundle,
+  manifestFileName: string,
+): { files: OutputFile[]; referenceNames: string[] } {
+  const files: OutputFile[] = []
+  const referenceNames: string[] = []
+
+  for (const output of Object.values(bundle)) {
+    if (output.fileName === manifestFileName) continue
+
+    referenceNames.push(output.fileName)
+
+    const content =
+      output.type === 'chunk'
+        ? output.code
+        : typeof output.source === 'string'
+          ? output.source
+          : null
+
+    if (content !== null) files.push({ fileName: output.fileName, content })
+  }
+
+  return { files, referenceNames }
+}
+
+/** query 未付与の参照が残っていないかを検証し、verify モードに応じて警告または例外を出す */
+function verifyOutput(
+  palette: Palette,
+  config: ResolvedConfig,
+  verifyMode: VerifyMode,
+  files: OutputFile[],
+  referenceNames: string[],
+  query: string,
+): void {
+  if (verifyMode === 'off') return
+
+  const findings = findMissingQuery(files, referenceNames, query)
+  if (findings.length === 0) return
+
+  const level = verifyMode === 'error' ? 'error' : 'warn'
+  const message = formatFindings(palette, level, findings)
+
+  if (level === 'error') throw new Error(message)
+  config.logger.warn(message)
+}
+
+/** ビルド結果のサマリを info ログに出す */
+function logSummary(
+  palette: Palette,
+  config: ResolvedConfig,
+  files: OutputFile[],
+  query: string,
+): void {
+  config.logger.info(formatSummary(palette, query, countByExtension(files, query)))
+}
 
 /** 出力ファイルごとに query の出現回数を拡張子別に数える */
 function countByExtension(files: OutputFile[], query: string): Record<string, number> {
