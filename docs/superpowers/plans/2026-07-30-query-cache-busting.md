@@ -4,7 +4,7 @@
 
 **Goal:** Vite のキャッシュバスティングを、ファイル名ハッシュではなくクエリパラメータ（`assets/index.js?v=202607302209`）で行う Vite プラグインを作る。
 
-**Architecture:** アセット・CSS・HTML・preload・public の URL は Vite の `experimental.renderBuiltUrl` をラップして query を付与する。`renderBuiltUrl` を通らないチャンク間 import 指定子だけを `renderChunk` で `parseAst`（Vite が re-export する oxc パーサ）+ `magic-string` により書き換える。`generateBundle` で manifest の書き換えと自己検証を行う。
+**Architecture:** `config` フックで出力ファイル名パターンから `[hash]` を外し、アセット・CSS・HTML・preload・public の URL は Vite の `experimental.renderBuiltUrl` をラップして query を付与する。`renderBuiltUrl` を通らないチャンク間 import 指定子だけを `renderChunk` で `parseAst`（Vite が re-export する oxc パーサ）+ `magic-string` により書き換える。`generateBundle` で manifest の書き換えと自己検証を行う。
 
 **Tech Stack:** TypeScript / Vite 8（バンドラは Rolldown）/ tsdown / vitest / magic-string / ansis / bun
 
@@ -19,7 +19,7 @@
 - パッケージ名は `vite-plugin-query-cache-busting`。プラグインの `name` も同じ文字列
 - ログのプレフィックスは `[query-cache-busting]`
 - ログ・エラーメッセージは日本語。色は補助であり、色を落としても情報量が変わらないこと
-- `src/` 配下は1ファイル1責務。`options.ts` / `version.ts` / `url.ts` / `guards.ts` / `verify.ts` / `manifest.ts` / `constants.ts` は Vite にも ansis にも依存しない純粋モジュールに保つ
+- `src/` 配下は1ファイル1責務。`options.ts` / `version.ts` / `url.ts` / `guards.ts` / `verify.ts` / `manifest.ts` / `constants.ts` / `file-names.ts` は Vite にも ansis にも依存しない純粋モジュールに保つ
 - TDD。各タスクは「失敗するテストを書く → 失敗を確認 → 最小実装 → 成功を確認 → コミット」の順で進める
 - コミットメッセージは Conventional Commits（`feat:` / `test:` / `chore:` / `docs:` / `fix:`）
 - linter は **oxlint**、formatter は **oxfmt**。設定は `.oxlintrc.json` / `.oxfmtrc.json`（設定済み）
@@ -29,6 +29,8 @@
 ## 設計ドキュメントからの差分
 
 以下2点は spec の 5 章のモジュール表に無いが、実装上必要になったため本計画で追加する。
+
+0. **`src/file-names.ts` と出力ファイル名からのハッシュ除去（Task 7・Task 11）** — spec の初版に「出力ファイル名から `[hash]` を外す」処理が抜けており、そのままでは `assets/index-a1b2c3d4.js?v=...` とハッシュとクエリの二重掛けになっていた。Task 2 のスパイクで判明し、spec 2 章・5 章・6 章・7 章・13 章・15.1 節に反映済み。利用者が `entryFileNames` などを明示指定していればそれを尊重し、そのパターンに `[hash]` が含まれていればビルドを落とす。
 
 1. **`src/constants.ts`** — `PLUGIN_NAME` と `LOG_PREFIX` の定数置き場。`options.ts` などの純粋モジュールからもエラーメッセージ用に参照するため、`logger.ts`（ansis 依存）とは別に切り出す。
 2. **`src/manifest.ts`（Task 10）と Task 11 での manifest 書き換え** — spec の 2 章のスコープに `.vite/manifest.json` が含まれていなかったが、バックエンド統合（spec 9.3 の `backend` fixture が想定する構成）ではテンプレートが manifest の `file` を読んでタグを組み立てるため、manifest を書き換えないとエントリファイルに query が付かず、その構成でのキャッシュバスティングが機能しない。`file` / `css` / `assets` の各パスのみ書き換え、`imports` / `dynamicImports`（manifest のキーであってパスではない）と `src` は書き換えない。
@@ -141,7 +143,9 @@ git commit -m "chore: set package metadata and declare direct dependencies"
 
 ### Task 2: 前提のスパイクテスト
 
-spec 6.3 の未検証の前提（`renderChunk` の時点でチャンク間 import 指定子が最終形か、`parseAst` のノードが `start`/`end` を持つか）を実測で確認する。この結果次第で Task 9・Task 11 の実装場所が変わるため最初に行う。
+spec 6.3 の前提（`renderChunk` の時点でチャンク間 import 指定子が最終形か、`parseAst` のノードが `start`/`end` を持つか）を実測で確認する。この結果次第で Task 9・Task 11 の実装場所が変わるため最初に行う。
+
+**重要（spec 15.1 で実測済み）**: この前提は**出力ファイル名パターンから `[hash]` を外している場合にのみ成立する**。Vite のデフォルト（`assets/[name]-[hash].js`）のままだと、`renderChunk` には `import("./lazy-!~{001}~.js")` のようにハッシュのプレースホルダが渡ってくる。プラグイン本体（Task 11）は `config` フックでこのパターンを設定するので、スパイクテストでも同じ設定を再現したうえで検証する。
 
 このテストは使い捨てにせず、前提が将来崩れたときに気づけるよう回帰テストとして残す。
 
@@ -275,7 +279,14 @@ test('parseAst は import 指定子を start/end 付きの Literal で返す', (
   expect(exportNode?.source.value).toBe('../other.js')
 })
 
-test('renderChunk はチャンク間 import の最終的な相対パスを受け取る', async () => {
+// プラグイン本体が config フックで設定するのと同じ、[hash] を含まないパターン
+const hashFreeOutput = {
+  entryFileNames: 'assets/[name].js',
+  chunkFileNames: 'assets/[name].js',
+  assetFileNames: 'assets/[name].[ext]',
+}
+
+async function captureRenderChunk(output: Record<string, string>) {
   const captured: { fileName: string, code: string }[] = []
 
   await build({
@@ -287,6 +298,7 @@ test('renderChunk はチャンク間 import の最終的な相対パスを受け
       write: false,
       minify: false,
       assetsInlineLimit: 0,
+      rollupOptions: { output },
     },
     plugins: [
       {
@@ -300,18 +312,36 @@ test('renderChunk はチャンク間 import の最終的な相対パスを受け
     ],
   })
 
+  return captured
+}
+
+test('[hash] を外せば renderChunk はチャンク間 import の最終的な相対パスを受け取る', async () => {
+  const captured = await captureRenderChunk(hashFreeOutput)
+
   expect(captured.length).toBeGreaterThan(1)
 
   const allCode = captured.map((chunk) => chunk.code).join('\n')
 
-  // 動的 import が最終的な相対パスで出ている（プレースホルダが残っていない）
+  // 動的 import が最終的な相対パスで出ている
   expect(allCode).toMatch(/import\(["']\.\/[\w.-]+\.js["']\)/)
 
   // 静的なチャンク間 import も最終的な相対パスで出ている
   expect(allCode).toMatch(/from\s*["']\.\/[\w.-]+\.js["']/)
 
-  // Rollup 形式のハッシュプレースホルダが残っていない
+  // ハッシュプレースホルダが残っていない
   expect(allCode).not.toMatch(/!~\{[0-9a-z]+\}~/)
+})
+
+test('[hash] が残っているとプレースホルダが渡ってくる（この設計が必要な理由）', async () => {
+  const captured = await captureRenderChunk({
+    entryFileNames: 'assets/[name]-[hash].js',
+    chunkFileNames: 'assets/[name]-[hash].js',
+    assetFileNames: 'assets/[name]-[hash].[ext]',
+  })
+
+  const allCode = captured.map((chunk) => chunk.code).join('\n')
+
+  expect(allCode).toMatch(/!~\{[0-9a-z]+\}~/)
 })
 ```
 
@@ -327,9 +357,9 @@ git rm src/index.ts tests/index.test.ts
 bun run test -- --run tests/assumptions.test.ts
 ```
 
-Expected: 2 件とも PASS。
+Expected: 3 件とも PASS。
 
-**PASS しなかった場合**: `renderChunk` の時点で指定子が最終形ではないということなので、実装を止めて報告する。その場合 Task 9 の書き換えは `renderChunk` ではなく `generateBundle` で行い、`chunk.map` と `magic-string` のマップを自前でマージする必要がある（spec 6.3）。
+**PASS しなかった場合**: `[hash]` を外しても `renderChunk` の時点で指定子が最終形にならないということなので、実装を止めて報告する。その場合 Task 9 の書き換えは `renderChunk` ではなく `generateBundle` で行い、`chunk.map` と `magic-string` のマップを自前でマージする必要がある（spec 6.3）。
 
 - [ ] **Step 6: コミット**
 
@@ -1031,15 +1061,25 @@ git commit -m "feat: detect references that are missing the cache-busting query"
 
 ---
 
-### Task 7: ガード（非対応構成の検出）
+### Task 7: ガードと出力ファイル名パターン
+
+このプラグインの前提は「出力ファイル名にハッシュが付かないこと」なので、パターンの決定と `[hash]` の検出は同じタスクで作る。パターン決定は純粋関数として `src/file-names.ts` に切り出し、その結果を使うエラー生成を `src/guards.ts` に置く。
 
 **Files:**
+- Create: `src/file-names.ts`
 - Create: `src/guards.ts`
+- Test: `tests/file-names.test.ts`
 - Test: `tests/guards.test.ts`
 
 **Interfaces:**
 - Consumes: なし（純粋モジュール）
-- Produces:
+- Produces（`src/file-names.ts`）:
+  - `interface OutputFileNames { entryFileNames: string, chunkFileNames: string, assetFileNames: string }`
+  - `containsHashPlaceholder(pattern: string): boolean` — `[hash]` / `[hash:8]` を検出
+  - `buildFileNames(assetsDir: string): OutputFileNames`
+  - `interface FileNamesDecision { patch: Partial<OutputFileNames>, hashed: string[], unverifiable: string[] }`
+  - `decideFileNames(userOutput: Record<string, unknown>, assetsDir: string): FileNamesDecision`
+- Produces（`src/guards.ts`）:
   - `interface Issue { title: string, details: string[], hints: string[] }`
   - `interface ConfigSnapshot { base: string, isLib: boolean, chunkImportMap: boolean, viteMajor: number }`
   - `collectConfigIssues(snapshot: ConfigSnapshot): { errors: Issue[], warnings: Issue[] }`
@@ -1049,8 +1089,184 @@ git commit -m "feat: detect references that are missing the cache-busting query"
   - `apiDriftIssue(): Issue`
   - `nonEsFormatIssue(format: string): Issue`
   - `manifestMissingIssue(manifestFileName: string): Issue`
+  - `hashedFileNamePatternIssue(keys: string[]): Issue`
+  - `unverifiableFileNamePatternIssue(keys: string[]): Issue`
+  - `multipleOutputsIssue(): Issue`
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [ ] **Step 1: `file-names` の失敗するテストを書く**
+
+`tests/file-names.test.ts`:
+
+```ts
+import { describe, expect, test } from 'vitest'
+import { buildFileNames, containsHashPlaceholder, decideFileNames } from '../src/file-names'
+
+describe('containsHashPlaceholder', () => {
+  test('[hash] を検出する', () => {
+    expect(containsHashPlaceholder('assets/[name]-[hash].js')).toBe(true)
+  })
+
+  test('桁数指定つきの [hash:8] も検出する', () => {
+    expect(containsHashPlaceholder('assets/[name]-[hash:8].js')).toBe(true)
+  })
+
+  test('ハッシュを含まないパターンは false', () => {
+    expect(containsHashPlaceholder('assets/[name].js')).toBe(false)
+  })
+})
+
+describe('buildFileNames', () => {
+  test('assetsDir を前置したパターンを返す', () => {
+    expect(buildFileNames('assets')).toEqual({
+      entryFileNames: 'assets/[name].js',
+      chunkFileNames: 'assets/[name].js',
+      assetFileNames: 'assets/[name].[ext]',
+    })
+  })
+
+  test('assetsDir が空なら前置しない', () => {
+    expect(buildFileNames('')).toEqual({
+      entryFileNames: '[name].js',
+      chunkFileNames: '[name].js',
+      assetFileNames: '[name].[ext]',
+    })
+  })
+
+  test('ネストした assetsDir も扱える', () => {
+    expect(buildFileNames('static/build').entryFileNames).toBe('static/build/[name].js')
+  })
+})
+
+describe('decideFileNames', () => {
+  test('利用者指定が無ければ3つとも埋める', () => {
+    const decision = decideFileNames({}, 'assets')
+
+    expect(decision.patch).toEqual(buildFileNames('assets'))
+    expect(decision.hashed).toEqual([])
+    expect(decision.unverifiable).toEqual([])
+  })
+
+  test('利用者が指定したキーは patch に含めず、他のキーだけ埋める', () => {
+    const decision = decideFileNames({ entryFileNames: 'js/[name].js' }, 'assets')
+
+    expect(decision.patch.entryFileNames).toBeUndefined()
+    expect(decision.patch.chunkFileNames).toBe('assets/[name].js')
+    expect(decision.hashed).toEqual([])
+  })
+
+  test('利用者指定に [hash] があれば hashed に入れる', () => {
+    const decision = decideFileNames({ entryFileNames: 'js/[name]-[hash].js' }, 'assets')
+
+    expect(decision.hashed).toEqual(['entryFileNames'])
+    expect(decision.patch.entryFileNames).toBeUndefined()
+  })
+
+  test('関数で指定されたキーは unverifiable に入れる', () => {
+    const decision = decideFileNames({ assetFileNames: () => 'x' }, 'assets')
+
+    expect(decision.unverifiable).toEqual(['assetFileNames'])
+    expect(decision.patch.assetFileNames).toBeUndefined()
+  })
+
+  test('複数キーの [hash] をまとめて返す', () => {
+    const decision = decideFileNames(
+      { entryFileNames: '[name]-[hash].js', chunkFileNames: '[name]-[hash].js' },
+      'assets',
+    )
+
+    expect(decision.hashed).toEqual(['entryFileNames', 'chunkFileNames'])
+  })
+})
+```
+
+- [ ] **Step 2: テストが失敗することを確認する**
+
+```bash
+bun run test -- --run tests/file-names.test.ts
+```
+
+Expected: FAIL。`Failed to resolve import "../src/file-names"`。
+
+- [ ] **Step 3: `src/file-names.ts` を書く**
+
+```ts
+const HASH_PLACEHOLDER_RE = /\[hash(?::\d+)?\]/
+
+export interface OutputFileNames {
+  entryFileNames: string
+  chunkFileNames: string
+  assetFileNames: string
+}
+
+export interface FileNamesDecision {
+  /** プラグインが設定するパターン（利用者が明示指定したキーは含まない） */
+  patch: Partial<OutputFileNames>
+  /** 利用者が指定したパターンのうち [hash] を含むキー */
+  hashed: string[]
+  /** 関数で指定されていて静的に検証できないキー */
+  unverifiable: string[]
+}
+
+const FILE_NAME_KEYS = ['entryFileNames', 'chunkFileNames', 'assetFileNames'] as const
+
+/** パターンにコンテンツハッシュのプレースホルダが含まれるか */
+export function containsHashPlaceholder(pattern: string): boolean {
+  return HASH_PLACEHOLDER_RE.test(pattern)
+}
+
+/** ハッシュを含まない出力ファイル名パターンを組み立てる */
+export function buildFileNames(assetsDir: string): OutputFileNames {
+  const prefix = assetsDir === '' ? '' : `${assetsDir}/`
+
+  return {
+    entryFileNames: `${prefix}[name].js`,
+    chunkFileNames: `${prefix}[name].js`,
+    assetFileNames: `${prefix}[name].[ext]`,
+  }
+}
+
+/**
+ * 利用者の output 設定を見て、プラグインが補うパターンと検査結果を返す。
+ * 利用者が明示指定したキーは尊重し、上書きしない。
+ */
+export function decideFileNames(
+  userOutput: Record<string, unknown>,
+  assetsDir: string,
+): FileNamesDecision {
+  const defaults = buildFileNames(assetsDir)
+  const patch: Partial<OutputFileNames> = {}
+  const hashed: string[] = []
+  const unverifiable: string[] = []
+
+  for (const key of FILE_NAME_KEYS) {
+    const value = userOutput[key]
+
+    if (value === undefined) {
+      patch[key] = defaults[key]
+      continue
+    }
+
+    if (typeof value === 'string') {
+      if (containsHashPlaceholder(value)) hashed.push(key)
+      continue
+    }
+
+    unverifiable.push(key)
+  }
+
+  return { patch, hashed, unverifiable }
+}
+```
+
+- [ ] **Step 4: テストが通ることを確認する**
+
+```bash
+bun run test -- --run tests/file-names.test.ts
+```
+
+Expected: 12 件すべて PASS。
+
+- [ ] **Step 5: `guards` の失敗するテストを書く**
 
 `tests/guards.test.ts`:
 
@@ -1059,10 +1275,13 @@ import { describe, expect, test } from 'vitest'
 import {
   apiDriftIssue,
   collectConfigIssues,
+  hashedFileNamePatternIssue,
   hijackedRenderBuiltUrlIssue,
   manifestMissingIssue,
+  multipleOutputsIssue,
   nonEsFormatIssue,
   parseMajor,
+  unverifiableFileNamePatternIssue,
   userHookReturnedObjectIssue,
 } from '../src/guards'
 
@@ -1142,6 +1361,9 @@ describe('個別の Issue', () => {
       apiDriftIssue(),
       nonEsFormatIssue('system'),
       manifestMissingIssue('.vite/manifest.json'),
+      hashedFileNamePatternIssue(['entryFileNames']),
+      unverifiableFileNamePatternIssue(['assetFileNames']),
+      multipleOutputsIssue(),
     ]
 
     for (const issue of issues) {
@@ -1157,10 +1379,22 @@ describe('個別の Issue', () => {
   test('manifestMissingIssue はファイル名を含む', () => {
     expect(manifestMissingIssue('.vite/manifest.json').details.join('')).toMatch(/manifest\.json/)
   })
+
+  test('hashedFileNamePatternIssue は該当キー名を含む', () => {
+    const issue = hashedFileNamePatternIssue(['entryFileNames', 'chunkFileNames'])
+
+    expect(issue.details.join('')).toMatch(/entryFileNames/)
+    expect(issue.details.join('')).toMatch(/chunkFileNames/)
+  })
+
+  test('unverifiableFileNamePatternIssue は該当キー名を含む', () => {
+    expect(unverifiableFileNamePatternIssue(['assetFileNames']).details.join(''))
+      .toMatch(/assetFileNames/)
+  })
 })
 ```
 
-- [ ] **Step 2: テストが失敗することを確認する**
+- [ ] **Step 6: テストが失敗することを確認する**
 
 ```bash
 bun run test -- --run tests/guards.test.ts
@@ -1168,9 +1402,7 @@ bun run test -- --run tests/guards.test.ts
 
 Expected: FAIL。`Failed to resolve import "../src/guards"`。
 
-- [ ] **Step 3: 最小実装を書く**
-
-`src/guards.ts`:
+- [ ] **Step 7: `src/guards.ts` を書く**
 
 ```ts
 export interface Issue {
@@ -1303,21 +1535,53 @@ export function manifestMissingIssue(manifestFileName: string): Issue {
     ],
   }
 }
+
+export function hashedFileNamePatternIssue(keys: string[]): Issue {
+  return {
+    title: '出力ファイル名パターンに [hash] が含まれています',
+    details: keys.map((key) => `build.rollupOptions.output.${key}`),
+    hints: [
+      'ファイル名ハッシュと query の二重掛けになり、このプラグインを使う意味が',
+      'なくなります。パターンから [hash] を外してください。',
+    ],
+  }
+}
+
+export function unverifiableFileNamePatternIssue(keys: string[]): Issue {
+  return {
+    title: '出力ファイル名パターンが関数で指定されているため検証できません',
+    details: keys.map((key) => `build.rollupOptions.output.${key}`),
+    hints: [
+      '関数が [hash] を含む名前を返さないか、静的に判定できません。',
+      'ビルド後に出力ファイル名にハッシュが付いていないか確認してください。',
+    ],
+  }
+}
+
+export function multipleOutputsIssue(): Issue {
+  return {
+    title: 'build.rollupOptions.output が配列（複数出力）の構成には対応していません',
+    details: ['output が配列で指定されています'],
+    hints: [
+      'v1 では単一出力のみ対応しています。output を単一のオブジェクトにしてください。',
+    ],
+  }
+}
 ```
 
-- [ ] **Step 4: テストが通ることを確認する**
+- [ ] **Step 8: テストが通ることを確認する**
 
 ```bash
 bun run test -- --run tests/guards.test.ts
 ```
 
-Expected: 14 件すべて PASS。
+Expected: 16 件すべて PASS。
 
-- [ ] **Step 5: コミット**
+- [ ] **Step 9: コミット**
 
 ```bash
-git add src/guards.ts tests/guards.test.ts
-git commit -m "feat: detect unsupported vite configurations"
+git add src/file-names.ts src/guards.ts tests/file-names.test.ts tests/guards.test.ts
+git commit -m "feat: resolve hash-free output file names and detect unsupported configs"
 ```
 
 ---
@@ -1995,6 +2259,19 @@ const basicRoot = fileURLToPath(new URL('../fixtures/basic', import.meta.url))
 const query = 'v=testver'
 
 describe('basic fixture', () => {
+  test('出力ファイル名にハッシュが付かない', async () => {
+    const files = await buildFixture(basicRoot, { version: 'testver' })
+
+    expect(files.map((file) => file.fileName).sort()).toEqual([
+      'assets/index.css',
+      'assets/index.js',
+      'assets/lazy.css',
+      'assets/lazy.js',
+      'assets/logo.svg',
+      'index.html',
+    ])
+  })
+
   test('HTML の script と link に query が付く', async () => {
     const files = await buildFixture(basicRoot, { version: 'testver' })
     const html = filesByExtension(files, '.html')[0]
@@ -2071,13 +2348,17 @@ import { Ansis } from 'ansis'
 import type { Plugin, ResolvedConfig, UserConfig } from 'vite'
 import { version as viteVersion } from 'vite'
 import { PLUGIN_NAME } from './constants'
+import { decideFileNames, type FileNamesDecision } from './file-names'
 import {
   apiDriftIssue,
   collectConfigIssues,
+  hashedFileNamePatternIssue,
   hijackedRenderBuiltUrlIssue,
   manifestMissingIssue,
+  multipleOutputsIssue,
   nonEsFormatIssue,
   parseMajor,
+  unverifiableFileNamePatternIssue,
   userHookReturnedObjectIssue,
 } from './guards'
 import { createPalette, formatFindings, formatIssue, formatSummary } from './logger'
@@ -2093,6 +2374,7 @@ export type { Options, VerifyMode } from './options'
 type RenderBuiltUrl = NonNullable<NonNullable<UserConfig['experimental']>['renderBuiltUrl']>
 
 const DEFAULT_MANIFEST_FILE_NAME = '.vite/manifest.json'
+const DEFAULT_ASSETS_DIR = 'assets'
 
 export function queryCacheBusting(options: Options = {}): Plugin {
   const resolved = normalizeOptions(options)
@@ -2101,6 +2383,7 @@ export function queryCacheBusting(options: Options = {}): Plugin {
   let query = ''
   let config: ResolvedConfig
   let userRenderBuiltUrl: RenderBuiltUrl | undefined
+  let fileNames: FileNamesDecision = { patch: {}, hashed: [], unverifiable: [] }
   let wrapperCalled = false
   let nonEsWarned = false
 
@@ -2130,7 +2413,20 @@ export function queryCacheBusting(options: Options = {}): Plugin {
       userRenderBuiltUrl = userConfig.experimental?.renderBuiltUrl
       query = buildQuery(resolved.key, await resolveVersion(resolved.version))
 
-      return { experimental: { renderBuiltUrl } }
+      const userOutput = userConfig.build?.rollupOptions?.output
+      if (Array.isArray(userOutput)) {
+        throw new Error(formatIssue(palette, 'error', multipleOutputsIssue()))
+      }
+
+      fileNames = decideFileNames(
+        (userOutput ?? {}) as Record<string, unknown>,
+        userConfig.build?.assetsDir ?? DEFAULT_ASSETS_DIR,
+      )
+
+      return {
+        build: { rollupOptions: { output: fileNames.patch } },
+        experimental: { renderBuiltUrl },
+      }
     },
 
     configResolved(resolvedConfig) {
@@ -2145,6 +2441,14 @@ export function queryCacheBusting(options: Options = {}): Plugin {
 
       if (resolvedConfig.experimental.renderBuiltUrl !== renderBuiltUrl) {
         errors.push(hijackedRenderBuiltUrlIssue())
+      }
+
+      if (fileNames.hashed.length > 0) {
+        errors.push(hashedFileNamePatternIssue(fileNames.hashed))
+      }
+
+      if (fileNames.unverifiable.length > 0) {
+        warnings.push(unverifiableFileNamePatternIssue(fileNames.unverifiable))
       }
 
       for (const warning of warnings) {
@@ -2523,7 +2827,7 @@ describe('worker fixture', () => {
 import { fileURLToPath } from 'node:url'
 import type { Plugin } from 'vite'
 import { describe, expect, test } from 'vitest'
-import { buildFixture } from '../helpers/build'
+import { buildFixture, expectAllReferencesBusted } from '../helpers/build'
 
 const basicRoot = fileURLToPath(new URL('../fixtures/basic', import.meta.url))
 
@@ -2562,6 +2866,31 @@ describe('非対応構成', () => {
   test('key に "=" を含めるとエラー', async () => {
     // buildFixture は async なので、同期 throw も rejected promise として届く
     await expect(buildFixture(basicRoot, { key: 'a=b' })).rejects.toThrow(/key/)
+  })
+
+  test('利用者が [hash] 付きのファイル名パターンを指定するとビルドを落とす', async () => {
+    await expect(
+      buildFixture(basicRoot, { version: 'testver' }, {
+        build: { rollupOptions: { output: { entryFileNames: 'assets/[name]-[hash].js' } } },
+      }),
+    ).rejects.toThrow(/\[hash\]/)
+  })
+
+  test('利用者が [hash] 無しのパターンを指定した場合は尊重する', async () => {
+    const files = await buildFixture(basicRoot, { version: 'testver' }, {
+      build: { rollupOptions: { output: { entryFileNames: 'js/[name].js' } } },
+    })
+
+    expect(files.some((file) => file.fileName === 'js/index.js')).toBe(true)
+    expectAllReferencesBusted(files, 'v=testver')
+  })
+
+  test('output が配列ならビルドを落とす', async () => {
+    await expect(
+      buildFixture(basicRoot, { version: 'testver' }, {
+        build: { rollupOptions: { output: [{ entryFileNames: 'assets/[name].js' }] } },
+      }),
+    ).rejects.toThrow(/output/)
   })
 })
 ```
@@ -2626,12 +2955,14 @@ export default defineConfig({
 })
 ```
 
-出力は次のようになります。
+出力は次のようになります。ファイル名からハッシュが消え、代わりにクエリが付きます。
 
 ```html
 <script type="module" src="/assets/index.js?v=202607302209"></script>
 <link rel="stylesheet" href="/assets/index.css?v=202607302209" />
 ```
+
+プラグインは `entryFileNames` / `chunkFileNames` / `assetFileNames` を `[hash]` 無しのパターンに設定します（`build.assetsDir` は尊重します）。これらを `vite.config.ts` で明示指定している場合はその指定が優先されますが、パターンに `[hash]` が含まれているとビルドが失敗します。ファイル名ハッシュとクエリの二重掛けになり、このプラグインを使う意味がなくなるためです。
 
 ## Options
 
@@ -2655,6 +2986,7 @@ queryCacheBusting({
 
 ## 対象になる参照
 
+- 出力ファイル名からのハッシュ除去（`entryFileNames` / `chunkFileNames` / `assetFileNames`）
 - HTML の `<script src>` / `<link rel="stylesheet">` / `<link rel="modulepreload">`
 - CSS の `url()`
 - JS 内のアセット URL（`import img from './x.png'`、`new URL('./x.png', import.meta.url)`）
@@ -2670,6 +3002,8 @@ queryCacheBusting({
 - ライブラリモード（`build.lib`）— 利用側のモジュール解決が壊れるため
 - `build.chunkImportMap` — Vite 自身が `experimental.renderBuiltUrl` との併用を非対応としているため
 - 他のプラグインによる `experimental.renderBuiltUrl` の上書き
+- 明示指定した出力ファイル名パターンに `[hash]` が含まれる場合
+- `build.rollupOptions.output` が配列（複数出力）の場合
 
 ## 既知の制限
 
@@ -2677,6 +3011,8 @@ queryCacheBusting({
   query が付きます。ソース中に文字列でハードコードされたパスには付きません
 - `base` に percent-encode を含む構成は非対応です
 - `@vitejs/plugin-legacy` の SystemJS 出力ではチャンク間 import を書き換えられません（警告が出ます）
+- 出力ファイル名パターンを関数で指定している場合、`[hash]` を含むかを静的に検証できません（警告が出ます）
+- ファイル名にハッシュが無いため、同じ `[name]` を持つチャンクが複数あると名前が衝突します。Rolldown が連番を付けて回避しますが、その連番はビルドごとに安定するとは限りません
 - 同一パスへ上書きデプロイするため、古い HTML を保持しているクライアントは
   `?v=<旧version>` を要求しても新しい中身のファイルを受け取ります。これはクエリ方式に
   内在する性質で、このプラグインでは解決できません

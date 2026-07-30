@@ -17,6 +17,7 @@ query を付与する対象は **Vite がデフォルトでファイル名ハッ
 
 対象に含むもの:
 
+- **出力ファイル名からのハッシュ除去**（`entryFileNames` / `chunkFileNames` / `assetFileNames` を `[hash]` 無しに設定する）
 - HTML の `<script src>`（エントリチャンク）、`<link rel="stylesheet">`、`<link rel="modulepreload">`
 - CSS の `url()`
 - JS 内のアセット URL（`import img from './x.png'`、`new URL('./x.png', import.meta.url)`）
@@ -104,6 +105,7 @@ v1 では include/exclude によるバンドル出力の絞り込みは設けな
 | `src/rewrite-imports.ts` | 1チャンクぶんの import 指定子書き換え | `vite`(parseAst), `magic-string` |
 | `src/guards.ts` | 非対応構成の検出とエラー生成 | 型のみ |
 | `src/verify.ts` | 出力バンドルの取りこぼし検査 | なし |
+| `src/file-names.ts` | 出力ファイル名パターンの決定と `[hash]` 検出 | なし |
 | `src/logger.ts` | ログ整形 | `ansis` |
 
 `options.ts` / `version.ts` / `url.ts` / `guards.ts` / `verify.ts` は Vite を起動せずに単体テストできる。実際にビルドを回す必要があるのは `rewrite-imports.ts` と結合部分のみ。
@@ -125,7 +127,8 @@ v1 では include/exclude によるバンドル出力の絞り込みは設けな
 config(userConfig)
  ├─ 既存の experimental.renderBuiltUrl を退避
  ├─ version を解決（async 可・ビルド中1回だけ）
- └─ ラップした renderBuiltUrl を返す
+ ├─ 出力ファイル名パターンを [hash] 無しで決定（利用者の明示指定は尊重）
+ └─ ラップした renderBuiltUrl と fileNames パターンを返す
         ↓
 configResolved(config)
  ├─ guards: 非対応構成なら throw
@@ -197,6 +200,8 @@ generateBundle(_, bundle)
 | `build.lib`（ライブラリモード） | `configResolved` | 配布物の import 指定子に query が付くと、利用側のバンドラや Node の解決が壊れる |
 | Vite のメジャーバージョンが 8 未満 | `configResolved` | `renderBuiltUrl` / `parseAst` の前提が揃わない |
 | 解決後の `renderBuiltUrl` が自分のラッパーでない | `configResolved` | 他プラグインに上書きされ、プラグインが無言で無効化された状態 |
+| 利用者が明示した出力ファイル名パターンに `[hash]` が含まれる | `configResolved` | ファイル名ハッシュと query の二重掛けになり、このプラグインを使う意味が無くなる |
+| `build.rollupOptions.output` が配列（複数出力） | `configResolved` | v1 では単一出力のみ対応 |
 | 既存の `renderBuiltUrl` が object（`{relative}` / `{runtime}`）を返す | ラッパー呼び出し時 | 実行時計算になるため相対 base と同じ理由 |
 | ラッパーがビルド中に一度も呼ばれず、かつ出力にアセット・CSS・HTML が存在する | `generateBundle` | Vite 側の API が変わったと判断する（12章のフォールバック判断材料） |
 
@@ -208,6 +213,7 @@ generateBundle(_, bundle)
 |---|---|
 | Vite のメジャーバージョンが 9 以上 | 未検証である旨を警告して続行。実害の検知は verify パスに委ねる |
 | `output.format` が `es` 以外（`@vitejs/plugin-legacy` 併用時の SystemJS など） | チャンク間 import を書き換えられない旨を警告。`System.register` の依存配列は AST の import ノードではないため v1 では対象外 |
+| 利用者が出力ファイル名パターンを**関数**で指定している | `[hash]` を含むかを静的に検証できない旨を警告して続行 |
 
 ### 7.3 自己検証パス（`verify`）
 
@@ -359,6 +365,8 @@ JS 文字列を直接入力して出力をアサートする。
 - ライブラリモード非対応
 - `@vitejs/plugin-legacy` の SystemJS 出力はチャンク間 import が書き換えられない
 - 上書きデプロイ中、古い HTML を持つクライアントは新しい中身のファイルを受け取る（3章）
+- ファイル名にハッシュが無いため、同じ `[name]` を持つチャンクが複数あると名前が衝突する。Rolldown が連番を付けて回避するが、その連番はビルドごとに安定するとは限らない
+- `build.rollupOptions.output` が配列（複数出力）の構成は非対応
 
 ## 14. 却下した代替案
 
@@ -393,4 +401,22 @@ JS 文字列を直接入力して出力をアサートする。
 - `joinUrlSegments` は `vite` の公開 export に含まれない
 - `ansis@4.3.1` は依存ゼロで、名前付き export（`red` / `cyan` / `dim` / `bold` など）と `Ansis` クラスを提供する
 
-**未検証の前提**: `renderChunk` の時点でチャンク間 import 指定子が最終的な相対パスになっているか（6.3、実装の最初のタスクで確認する）
+### 15.1 スパイクで実測した結果（2026-07-31 追記）
+
+6.3 の未検証の前提を実測したところ、**ファイル名パターンに `[hash]` が残っている限り成立しない**ことが判明した。Vite のデフォルト設定（`assets/[name]-[hash].js`）のままビルドすると、`renderChunk` には次のようにハッシュのプレースホルダが渡ってくる。
+
+```
+__vitePreload(() => import("./lazy-!~{001}~.js"), __VITE_PRELOAD__);
+import { t as shared } from "./index-!~{000}~.js";
+```
+
+`entryFileNames` / `chunkFileNames` / `assetFileNames` から `[hash]` を外して同じ fixture をビルドすると、プレースホルダは消え、指定子は最終的な相対パスになる。
+
+```
+出力ファイル名: assets/index.js, assets/lazy.js, assets/index.css, assets/lazy.css, assets/logo.svg, index.html
+プレースホルダ /!~\{[0-9a-z]+\}~/ の有無: false
+__vitePreload(() => import("./lazy.js"), __VITE_PRELOAD__);
+import { t as shared } from "./index.js";
+```
+
+この結果を受けて 2 章のスコープに「出力ファイル名からのハッシュ除去」を追加し、6 章の `config` フックでパターンを設定する設計に改めた。**前提は「ファイル名パターンの設定が入っていれば成立する」が正しい結論である。**
