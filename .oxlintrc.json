@@ -18,6 +18,13 @@
   },
   "overrides": [
     {
+      "files": ["src/index.ts"],
+      "rules": {
+        "max-dependencies": "off",
+        "prefer-type-error": "off"
+      }
+    },
+    {
       "files": ["tests/**"],
       "rules": {
         "require-await": "off",

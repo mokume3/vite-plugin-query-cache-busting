@@ -25,6 +25,7 @@
 - linter は **oxlint**、formatter は **oxfmt**。設定は `.oxlintrc.json` / `.oxfmtrc.json`（設定済み）
 - **各タスクのコミット直前に `bun run format` と `bun run lint` を実行し、両方通してからコミットする**。この計画のコード例は整形前の形なので、`bun run format` による整形（import のグループ分け・改行位置など）は差分として正常
 - コードスタイルは `.oxfmtrc.json` に従う: セミコロン無し・シングルクォート・インデント2スペース・行幅 100・末尾カンマあり・import 自動ソート・`package.json` のキー自動ソート
+- `src/index.ts` では `max-dependencies` と `prefer-type-error` を `.oxlintrc.json` の `overrides` で無効化してある。前者はこのファイルが「小さな純粋モジュール群を束ねる薄い組み立て層」という設計そのものの帰結であり、依存を減らすことが設計の後退になるため。後者が指す `throw` は型の誤りではなく利用者の設定の誤りなので、他のエラーと同じく `Error` で揃える
 - `tests/**` では `max-lines-per-function` を `.oxlintrc.json` の `overrides` で無効化してある。vitest の `describe` ブロックは関数として数えられるため、テストの本数が増えるだけでこの規則に引っかかる。テストの構成をこの規則に合わせて歪めるより、テストファイルには適用しない方が正しい
 - `tests/**` では `require-await` と `no-useless-undefined` を `.oxlintrc.json` の `overrides` で無効化してある。「async 関数を受け付けること」「`undefined` を返す関数を受け付けること」を検証するテストがこれらのルールに引っかかるが、その書き方こそがテストの主題だから
 - `prefer-number-coercion` は `.oxlintrc.json` で無効化してある。`parseMajor` は `Number.parseInt(str, 10)` の「先頭の数字だけ読んで残りを捨てる」挙動を意図して使っている（`'8beta'` → `8`）。`Number()` への置き換えはこの寛容さを失わせ、同じ入力で `0` を返すようになるため、**`Number.parseInt` を `Number()` に置き換えないこと**
