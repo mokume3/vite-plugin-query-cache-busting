@@ -67,3 +67,33 @@ export function expectAllReferencesBusted(files: BuiltFile[], query: string): vo
 export function filesByExtension(files: BuiltFile[], extension: string): BuiltFile[] {
   return files.filter((file) => file.fileName.endsWith(extension))
 }
+
+export interface ManifestEntry {
+  file: string
+  css?: string[]
+  assets?: string[]
+  imports?: string[]
+  dynamicImports?: string[]
+}
+
+/** 出力から manifest を読む。無ければ落とす（既定値で素通りさせない） */
+export function readManifest(files: BuiltFile[]): Record<string, ManifestEntry> {
+  const manifest = files.find((file) => file.fileName.endsWith(MANIFEST_SUFFIX))
+
+  if (manifest === undefined) {
+    throw new Error('manifest.json が出力されていません')
+  }
+
+  return JSON.parse(manifest.content) as Record<string, ManifestEntry>
+}
+
+/** manifest 全エントリの imports / dynamicImports のキーを集める */
+export function collectManifestImportKeys(manifest: Record<string, ManifestEntry>): string[] {
+  const keys: string[] = []
+
+  for (const entry of Object.values(manifest)) {
+    keys.push(...(entry.imports ?? []), ...(entry.dynamicImports ?? []))
+  }
+
+  return keys
+}
