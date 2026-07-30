@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e \"import\\('vite'\\).then\\(m=>console.log\\(Object.keys\\(m\\).join\\(' '\\)\\)\\)\")"
+      "Bash(node -e \"import\\('vite'\\).then\\(m=>console.log\\(Object.keys\\(m\\).join\\(' '\\)\\)\\)\")",
+      "Bash(./node_modules/.bin/oxlint src *)",
+      "Bash(echo \"exit with error = $?\")",
+      "Bash(echo \"exit when clean = $?\")",
+      "Bash(bun run *)",
+      "Bash(bunx oxfmt *)",
+      "Bash(echo \"format:check exit = $?\")",
+      "Bash(bunx oxlint *)",
+      "Bash(echo \"lint exit = $?\")",
+      "Bash(cd /Users/mokume/Development/vite-plugin-query-cache-busting *)"
     ]
   }
 }
