@@ -14,5 +14,14 @@
   "ignorePatterns": ["dist", "node_modules", "tests/fixtures"],
   "rules": {
     "require-unicode-regexp": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["tests/**"],
+      "rules": {
+        "require-await": "off",
+        "no-useless-undefined": "off"
+      }
+    }
+  ]
 }
