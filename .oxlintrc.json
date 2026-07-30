@@ -12,5 +12,7 @@
     "node": true
   },
   "ignorePatterns": ["dist", "node_modules", "tests/fixtures"],
-  "rules": {}
+  "rules": {
+    "require-unicode-regexp": "off"
+  }
 }
