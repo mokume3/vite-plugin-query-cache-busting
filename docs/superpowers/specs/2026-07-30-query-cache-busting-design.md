@@ -17,7 +17,7 @@ query を付与する対象は **Vite がデフォルトでファイル名ハッ
 
 対象に含むもの:
 
-- **出力ファイル名からのハッシュ除去**（`entryFileNames` / `chunkFileNames` / `assetFileNames` を `[hash]` 無しに設定する）
+- **出力ファイル名からのハッシュ除去**（`entryFileNames` / `chunkFileNames` / `assetFileNames` を `[hash]` 無しに設定する）。worker は Vite が入れ子のビルドとして処理し `build.rollupOptions` が届かないため、`worker.rolldownOptions`（利用者が deprecated な `worker.rollupOptions` を使っている場合はそちら）にも同じパターンを渡す
 - HTML の `<script src>`（エントリチャンク）、`<link rel="stylesheet">`、`<link rel="modulepreload">`
 - CSS の `url()`
 - JS 内のアセット URL（`import img from './x.png'`、`new URL('./x.png', import.meta.url)`）

@@ -2393,6 +2393,7 @@ export function queryCacheBusting(options: Options = {}): Plugin {
   let config: ResolvedConfig
   let userRenderBuiltUrl: RenderBuiltUrl | undefined
   let fileNames: FileNamesDecision = { patch: {}, hashed: [], unverifiable: [] }
+  let workerFileNames: FileNamesDecision = { patch: {}, hashed: [], unverifiable: [] }
   let wrapperCalled = false
 
   const renderBuiltUrl: RenderBuiltUrl = (filename, context) => {
@@ -2421,18 +2422,33 @@ export function queryCacheBusting(options: Options = {}): Plugin {
       userRenderBuiltUrl = userConfig.experimental?.renderBuiltUrl
       query = buildQuery(resolved.key, await resolveVersion(resolved.version))
 
+      const assetsDir = userConfig.build?.assetsDir ?? DEFAULT_ASSETS_DIR
+
       const userOutput = userConfig.build?.rollupOptions?.output
       if (Array.isArray(userOutput)) {
         throw new Error(formatIssue(palette, 'error', multipleOutputsIssue()))
       }
+      fileNames = decideFileNames((userOutput ?? {}) as Record<string, unknown>, assetsDir)
 
-      fileNames = decideFileNames(
-        (userOutput ?? {}) as Record<string, unknown>,
-        userConfig.build?.assetsDir ?? DEFAULT_ASSETS_DIR,
+      // worker は Vite が入れ子のビルドとして処理するため build.rollupOptions のパターンが
+      // 届かない。同じパターンを worker 側にも渡さないとファイル名にハッシュが残る。
+      // 利用者が deprecated な worker.rollupOptions を使っている場合はそのキーに書き戻す。
+      const workerKey = userConfig.worker?.rollupOptions === undefined
+        ? 'rolldownOptions'
+        : 'rollupOptions'
+      const userWorkerOutput = userConfig.worker?.rolldownOptions?.output
+        ?? userConfig.worker?.rollupOptions?.output
+      if (Array.isArray(userWorkerOutput)) {
+        throw new Error(formatIssue(palette, 'error', multipleOutputsIssue()))
+      }
+      workerFileNames = decideFileNames(
+        (userWorkerOutput ?? {}) as Record<string, unknown>,
+        assetsDir,
       )
 
       return {
         build: { rollupOptions: { output: fileNames.patch } },
+        worker: { [workerKey]: { output: workerFileNames.patch } },
         experimental: { renderBuiltUrl },
       }
     },
@@ -2451,12 +2467,14 @@ export function queryCacheBusting(options: Options = {}): Plugin {
         errors.push(hijackedRenderBuiltUrlIssue())
       }
 
-      if (fileNames.hashed.length > 0) {
-        errors.push(hashedFileNamePatternIssue(fileNames.hashed))
+      const hashed = [...fileNames.hashed, ...workerFileNames.hashed]
+      if (hashed.length > 0) {
+        errors.push(hashedFileNamePatternIssue(hashed))
       }
 
-      if (fileNames.unverifiable.length > 0) {
-        warnings.push(unverifiableFileNamePatternIssue(fileNames.unverifiable))
+      const unverifiable = [...fileNames.unverifiable, ...workerFileNames.unverifiable]
+      if (unverifiable.length > 0) {
+        warnings.push(unverifiableFileNamePatternIssue(unverifiable))
       }
 
       for (const warning of warnings) {
@@ -2822,6 +2840,16 @@ import { buildFixture, expectAllReferencesBusted, filesByExtension } from '../he
 const root = fileURLToPath(new URL('../fixtures/worker', import.meta.url))
 
 describe('worker fixture', () => {
+  test('worker の出力ファイル名にもハッシュが付かない', async () => {
+    const files = await buildFixture(root, { version: 'testver' })
+
+    expect(files.map((file) => file.fileName).toSorted()).toEqual([
+      'assets/index.js',
+      'assets/worker.js',
+      'index.html',
+    ])
+  })
+
   test('worker の URL に query が付く', async () => {
     const files = await buildFixture(root, { version: 'testver' })
     const js = filesByExtension(files, '.js').map((file) => file.content).join('\n')
