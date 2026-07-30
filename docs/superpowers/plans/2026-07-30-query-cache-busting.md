@@ -1267,7 +1267,7 @@ export function decideFileNames(
 bun run test -- --run tests/file-names.test.ts
 ```
 
-Expected: 12 件すべて PASS。
+Expected: 11 件すべて PASS。
 
 - [ ] **Step 5: `guards` の失敗するテストを書く**
 
