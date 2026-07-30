@@ -25,6 +25,7 @@
 - linter は **oxlint**、formatter は **oxfmt**。設定は `.oxlintrc.json` / `.oxfmtrc.json`（設定済み）
 - **各タスクのコミット直前に `bun run format` と `bun run lint` を実行し、両方通してからコミットする**。この計画のコード例は整形前の形なので、`bun run format` による整形（import のグループ分け・改行位置など）は差分として正常
 - コードスタイルは `.oxfmtrc.json` に従う: セミコロン無し・シングルクォート・インデント2スペース・行幅 100・末尾カンマあり・import 自動ソート・`package.json` のキー自動ソート
+- `tests/**` では `max-lines-per-function` を `.oxlintrc.json` の `overrides` で無効化してある。vitest の `describe` ブロックは関数として数えられるため、テストの本数が増えるだけでこの規則に引っかかる。テストの構成をこの規則に合わせて歪めるより、テストファイルには適用しない方が正しい
 - `tests/**` では `require-await` と `no-useless-undefined` を `.oxlintrc.json` の `overrides` で無効化してある。「async 関数を受け付けること」「`undefined` を返す関数を受け付けること」を検証するテストがこれらのルールに引っかかるが、その書き方こそがテストの主題だから
 - `require-unicode-regexp` は `.oxlintrc.json` で無効化してある。このプラグインの正規表現は ASCII のビルド出力とファイル名パターンだけを相手にしており、`u` フラグを付ける実利が無い一方で、プレースホルダ検出の `/!~\{[0-9a-z]+\}~/` のようなパターンは `u` モードでは `\{` が不正なエスケープになり書き換えを強いられるため。**この計画に書かれた正規表現に `u` フラグを足さないこと**
 
