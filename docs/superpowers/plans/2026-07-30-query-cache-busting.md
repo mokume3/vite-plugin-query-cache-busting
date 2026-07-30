@@ -2577,7 +2577,7 @@ function countByExtension(files: OutputFile[], query: string): Record<string, nu
 bun run test -- --run tests/integration/basic.test.ts
 ```
 
-Expected: 7 件すべて PASS。
+Expected: 8 件すべて PASS。
 
 - [ ] **Step 5: 全テストと lint / format / 型チェックを通す**
 
