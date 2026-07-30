@@ -13,7 +13,7 @@ export interface ConfigSnapshot {
 
 /** バージョン文字列からメジャーバージョンを取り出す。解釈できなければ 0 */
 export function parseMajor(version: string): number {
-  const major = Math.trunc(Number(version.split('.')[0] ?? ''))
+  const major = Number.parseInt(version.split('.')[0] ?? '', 10)
   return Number.isNaN(major) ? 0 : major
 }
 
@@ -38,7 +38,8 @@ function libModeIssue(isLib: boolean): Issue | undefined {
     details: ['build.lib が設定されています'],
     hints: [
       '配布物の import 指定子に query が付くと、利用側のバンドラや Node の',
-      'モジュール解決が壊れるためです。',
+      'モジュール解決が壊れるためです。ライブラリのビルドでは plugins から',
+      'このプラグインを外してください。',
     ],
   }
 }
@@ -62,7 +63,10 @@ function unsupportedViteMajorIssue(viteMajor: number): Issue | undefined {
   return {
     title: `Vite 8 以上が必要です（検出: ${viteMajor}）`,
     details: [],
-    hints: ['experimental.renderBuiltUrl と parseAst の前提が Vite 8 未満では揃いません。'],
+    hints: [
+      'experimental.renderBuiltUrl と parseAst の前提が Vite 8 未満では揃いません。',
+      'Vite 8 以上にアップグレードしてください。',
+    ],
   }
 }
 
