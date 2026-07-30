@@ -27,6 +27,7 @@
 - コードスタイルは `.oxfmtrc.json` に従う: セミコロン無し・シングルクォート・インデント2スペース・行幅 100・末尾カンマあり・import 自動ソート・`package.json` のキー自動ソート
 - `tests/**` では `max-lines-per-function` を `.oxlintrc.json` の `overrides` で無効化してある。vitest の `describe` ブロックは関数として数えられるため、テストの本数が増えるだけでこの規則に引っかかる。テストの構成をこの規則に合わせて歪めるより、テストファイルには適用しない方が正しい
 - `tests/**` では `require-await` と `no-useless-undefined` を `.oxlintrc.json` の `overrides` で無効化してある。「async 関数を受け付けること」「`undefined` を返す関数を受け付けること」を検証するテストがこれらのルールに引っかかるが、その書き方こそがテストの主題だから
+- `prefer-number-coercion` は `.oxlintrc.json` で無効化してある。`parseMajor` は `Number.parseInt(str, 10)` の「先頭の数字だけ読んで残りを捨てる」挙動を意図して使っている（`'8beta'` → `8`）。`Number()` への置き換えはこの寛容さを失わせ、同じ入力で `0` を返すようになるため、**`Number.parseInt` を `Number()` に置き換えないこと**
 - `require-unicode-regexp` は `.oxlintrc.json` で無効化してある。このプラグインの正規表現は ASCII のビルド出力とファイル名パターンだけを相手にしており、`u` フラグを付ける実利が無い一方で、プレースホルダ検出の `/!~\{[0-9a-z]+\}~/` のようなパターンは `u` モードでは `\{` が不正なエスケープになり書き換えを強いられるため。**この計画に書かれた正規表現に `u` フラグを足さないこと**
 
 ## 設計ドキュメントからの差分
@@ -1448,7 +1449,8 @@ export function collectConfigIssues(snapshot: ConfigSnapshot): { errors: Issue[]
       details: ['build.lib が設定されています'],
       hints: [
         '配布物の import 指定子に query が付くと、利用側のバンドラや Node の',
-        'モジュール解決が壊れるためです。',
+        'モジュール解決が壊れるためです。ライブラリのビルドでは plugins から',
+        'このプラグインを外してください。',
       ],
     })
   }
@@ -1468,7 +1470,10 @@ export function collectConfigIssues(snapshot: ConfigSnapshot): { errors: Issue[]
     errors.push({
       title: `Vite 8 以上が必要です（検出: ${snapshot.viteMajor}）`,
       details: [],
-      hints: ['experimental.renderBuiltUrl と parseAst の前提が Vite 8 未満では揃いません。'],
+      hints: [
+        'experimental.renderBuiltUrl と parseAst の前提が Vite 8 未満では揃いません。',
+        'Vite 8 以上にアップグレードしてください。',
+      ],
     })
   } else if (snapshot.viteMajor > 8) {
     warnings.push({

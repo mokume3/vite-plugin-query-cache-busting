@@ -13,7 +13,8 @@
   },
   "ignorePatterns": ["dist", "node_modules", "tests/fixtures"],
   "rules": {
-    "require-unicode-regexp": "off"
+    "require-unicode-regexp": "off",
+    "prefer-number-coercion": "off"
   },
   "overrides": [
     {
