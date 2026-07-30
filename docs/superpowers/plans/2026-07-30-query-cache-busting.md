@@ -2638,7 +2638,12 @@ export const lazyValue = 'backend-lazy'
 ```ts
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
-import { buildFixture, expectAllReferencesBusted } from '../helpers/build'
+import {
+  buildFixture,
+  collectManifestImportKeys,
+  expectAllReferencesBusted,
+  readManifest,
+} from '../helpers/build'
 
 const backendRoot = fileURLToPath(new URL('../fixtures/backend', import.meta.url))
 
@@ -2652,25 +2657,23 @@ const backendOverrides = {
 describe('backend fixture（HTML 無し・manifest あり）', () => {
   test('manifest の file に query が付く', async () => {
     const files = await buildFixture(backendRoot, { version: 'testver' }, backendOverrides)
-    const manifest = files.find((file) => file.fileName.endsWith('manifest.json'))
+    const entries = Object.values(readManifest(files))
 
-    expect(manifest).toBeDefined()
+    expect(entries.length).toBeGreaterThan(0)
 
-    const parsed = JSON.parse(manifest?.content ?? '{}') as Record<string, { file?: string }>
-    const entry = Object.values(parsed)[0]
-
-    expect(entry?.file).toMatch(/\.js\?v=testver$/)
+    for (const entry of entries) {
+      expect(entry.file).toMatch(/\?v=testver$/)
+    }
   })
 
   test('manifest の imports はキーのままで書き換えない', async () => {
     const files = await buildFixture(backendRoot, { version: 'testver' }, backendOverrides)
-    const manifest = files.find((file) => file.fileName.endsWith('manifest.json'))
-    const parsed = JSON.parse(manifest?.content ?? '{}') as Record<string, { imports?: string[] }>
+    const importKeys = collectManifestImportKeys(readManifest(files))
 
-    for (const entry of Object.values(parsed)) {
-      for (const importKey of entry.imports ?? []) {
-        expect(importKey).not.toContain('?v=')
-      }
+    expect(importKeys.length).toBeGreaterThan(0)
+
+    for (const importKey of importKeys) {
+      expect(importKey).not.toContain('?v=')
     }
   })
 
@@ -2727,13 +2730,15 @@ Expected: 3 件すべて PASS。
 `tests/fixtures/multi-entry/src/main.ts`:
 
 ```ts
-export const page = 'home'
+// 副作用が無いと Vite がチャンクごと tree-shake して、HTML から参照が消えてしまう
+document.title = 'home'
 ```
 
 `tests/fixtures/multi-entry/src/about.ts`:
 
 ```ts
-export const page = 'about'
+// 副作用が無いと Vite がチャンクごと tree-shake して、HTML から参照が消えてしまう
+document.title = 'about'
 ```
 
 `tests/integration/multi-entry.test.ts`:
