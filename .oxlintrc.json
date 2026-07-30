@@ -20,7 +20,8 @@
       "files": ["tests/**"],
       "rules": {
         "require-await": "off",
-        "no-useless-undefined": "off"
+        "no-useless-undefined": "off",
+        "max-lines-per-function": "off"
       }
     }
   ]
