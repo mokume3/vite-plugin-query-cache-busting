@@ -4,7 +4,7 @@
 
 **Goal:** Vite のキャッシュバスティングを、ファイル名ハッシュではなくクエリパラメータ（`assets/index.js?v=202607302209`）で行う Vite プラグインを作る。
 
-**Architecture:** `config` フックで出力ファイル名パターンから `[hash]` を外し、アセット・CSS・HTML・preload・public の URL は Vite の `experimental.renderBuiltUrl` をラップして query を付与する。`renderBuiltUrl` を通らないチャンク間 import 指定子だけを `renderChunk` で `parseAst`（Vite が re-export する oxc パーサ）+ `magic-string` により書き換える。`generateBundle` で manifest の書き換えと自己検証を行う。
+**Architecture:** `config` フックで出力ファイル名パターンから `[hash]` を外し、アセット・CSS・HTML・preload・public の URL は Vite の `experimental.renderBuiltUrl` をラップして query を付与する。`renderBuiltUrl` を通らないチャンク間 import 指定子だけを `generateBundle`（`order: 'post'`）で `parseAst`（Vite が re-export する oxc パーサ）+ `magic-string` により書き換える。同じフックで manifest の書き換えと自己検証も行う。
 
 **Tech Stack:** TypeScript / Vite 8（バンドラは Rolldown）/ tsdown / vitest / magic-string / ansis / bun
 
@@ -2393,7 +2393,6 @@ export function queryCacheBusting(options: Options = {}): Plugin {
   let userRenderBuiltUrl: RenderBuiltUrl | undefined
   let fileNames: FileNamesDecision = { patch: {}, hashed: [], unverifiable: [] }
   let wrapperCalled = false
-  let nonEsWarned = false
 
   const renderBuiltUrl: RenderBuiltUrl = (filename, context) => {
     wrapperCalled = true
@@ -2468,76 +2467,81 @@ export function queryCacheBusting(options: Options = {}): Plugin {
       }
     },
 
-    renderChunk(code, chunk, outputOptions) {
-      if (this.environment?.config.consumer === 'server') return null
+    // Vite の vite:build-import-analysis は __vitePreload の依存配列を generateBundle で
+    // 解決する。その解決は動的 import の指定子を手がかりに bundle のキーを引くため、
+    // 指定子を先に書き換えると依存配列が空になり、遅延チャンクの CSS がどこからも
+    // 参照されなくなる。order: 'post' で Vite の処理が終わった後に書き換える。
+    generateBundle: {
+      order: 'post',
+      handler(outputOptions, bundle) {
+        if (this.environment?.config.consumer === 'server') return
 
-      if (outputOptions.format !== 'es') {
-        if (!nonEsWarned) {
-          nonEsWarned = true
-          config.logger.warn(formatIssue(palette, 'warn', nonEsFormatIssue(String(outputOptions.format))))
+        const manifestOption = config.build.manifest
+        const manifestFileName = typeof manifestOption === 'string'
+          ? manifestOption
+          : DEFAULT_MANIFEST_FILE_NAME
+
+        const hasRenderableAssets = Object.values(bundle).some(
+          (output) =>
+            output.type === 'asset'
+            && isTrackedName(output.fileName)
+            && !output.fileName.endsWith('.json'),
+        )
+
+        if (!wrapperCalled && hasRenderableAssets) {
+          throw new Error(formatIssue(palette, 'error', apiDriftIssue()))
         }
-        return null
-      }
 
-      const result = rewriteImports(code, query, chunk.fileName)
-      if (result === null) return null
+        if (outputOptions.format === 'es') {
+          for (const output of Object.values(bundle)) {
+            if (output.type !== 'chunk') continue
 
-      return { code: result.code, map: result.map }
-    },
-
-    generateBundle(_outputOptions, bundle) {
-      if (this.environment?.config.consumer === 'server') return
-
-      const manifestOption = config.build.manifest
-      const manifestFileName = typeof manifestOption === 'string' ? manifestOption : DEFAULT_MANIFEST_FILE_NAME
-
-      const hasRenderableAssets = Object.values(bundle).some(
-        (output) =>
-          output.type === 'asset'
-          && isTrackedName(output.fileName)
-          && !output.fileName.endsWith('.json'),
-      )
-
-      if (!wrapperCalled && hasRenderableAssets) {
-        throw new Error(formatIssue(palette, 'error', apiDriftIssue()))
-      }
-
-      if (manifestOption === true || typeof manifestOption === 'string') {
-        const manifest = bundle[manifestFileName]
-        if (manifest === undefined || manifest.type !== 'asset') {
-          throw new Error(formatIssue(palette, 'error', manifestMissingIssue(manifestFileName)))
+            const result = rewriteImports(output.code, query, output.fileName)
+            if (result !== null) output.code = result.code
+          }
+        } else {
+          config.logger.warn(
+            formatIssue(palette, 'warn', nonEsFormatIssue(String(outputOptions.format))),
+          )
         }
-        manifest.source = rewriteManifest(String(manifest.source), query)
-      }
 
-      const files: OutputFile[] = []
-      const referenceNames: string[] = []
-
-      for (const output of Object.values(bundle)) {
-        if (output.fileName === manifestFileName) continue
-
-        referenceNames.push(output.fileName)
-
-        const content = output.type === 'chunk'
-          ? output.code
-          : typeof output.source === 'string' ? output.source : null
-
-        if (content !== null) files.push({ fileName: output.fileName, content })
-      }
-
-      if (resolved.verify !== 'off') {
-        const findings = findMissingQuery(files, referenceNames, query)
-
-        if (findings.length > 0) {
-          const level = resolved.verify === 'error' ? 'error' : 'warn'
-          const message = formatFindings(palette, level, findings)
-
-          if (level === 'error') throw new Error(message)
-          config.logger.warn(message)
+        if (manifestOption === true || typeof manifestOption === 'string') {
+          const manifest = bundle[manifestFileName]
+          if (manifest === undefined || manifest.type !== 'asset') {
+            throw new Error(formatIssue(palette, 'error', manifestMissingIssue(manifestFileName)))
+          }
+          manifest.source = rewriteManifest(String(manifest.source), query)
         }
-      }
 
-      config.logger.info(formatSummary(palette, query, countByExtension(files, query)))
+        const files: OutputFile[] = []
+        const referenceNames: string[] = []
+
+        for (const output of Object.values(bundle)) {
+          if (output.fileName === manifestFileName) continue
+
+          referenceNames.push(output.fileName)
+
+          const content = output.type === 'chunk'
+            ? output.code
+            : typeof output.source === 'string' ? output.source : null
+
+          if (content !== null) files.push({ fileName: output.fileName, content })
+        }
+
+        if (resolved.verify !== 'off') {
+          const findings = findMissingQuery(files, referenceNames, query)
+
+          if (findings.length > 0) {
+            const level = resolved.verify === 'error' ? 'error' : 'warn'
+            const message = formatFindings(palette, level, findings)
+
+            if (level === 'error') throw new Error(message)
+            config.logger.warn(message)
+          }
+        }
+
+        config.logger.info(formatSummary(palette, query, countByExtension(files, query)))
+      },
     },
   }
 }

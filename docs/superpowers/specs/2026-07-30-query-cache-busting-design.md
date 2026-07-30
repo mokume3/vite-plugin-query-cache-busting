@@ -141,12 +141,12 @@ configResolved(config)
  ├─ __vitePreload の deps 配列          │
  └─ public/ の参照                     ─┘
         ↓
-renderChunk(code, chunk)  [enforce: 'post']
- └─ parseAst + magic-string でチャンク間 import に ?v= を付与
-        ↓
-generateBundle(_, bundle)
+generateBundle(outputOptions, bundle)  [order: 'post']
  ├─ ラッパーが一度も呼ばれていなければ throw（API ドリフト検知）
- └─ verify: query 未付与の参照が残っていないか検査
+ ├─ parseAst + magic-string でチャンク間 import に ?v= を付与
+ ├─ manifest の file / css / assets に ?v= を付与
+ ├─ verify: query 未付与の参照が残っていないか検査
+ └─ 付与件数のサマリを info ログに出す
 ```
 
 プラグインは `apply: 'build'` 固定、`enforce: 'post'`。
@@ -168,7 +168,7 @@ generateBundle(_, bundle)
 
 ### 6.2 チャンク間 import の書き換え
 
-`renderChunk` で `parseAst`（Vite が re-export する oxc パーサ）により AST を取得し、以下4種類のノードのソース文字列リテラルのみを `magic-string` で書き換える。
+`generateBundle`（`order: 'post'`）で `parseAst`（Vite が re-export する oxc パーサ）により AST を取得し、以下4種類のノードのソース文字列リテラルのみを `magic-string` で書き換える。
 
 - `ImportDeclaration.source`
 - `ExportNamedDeclaration.source`
@@ -177,15 +177,18 @@ generateBundle(_, bundle)
 
 動的に組み立てられた `import(expr)` は対象外とする（Vite でも静的に解決できないため同じ扱い）。
 
-`renderChunk` から `{ code, map }` を返し、sourcemap の連結は Rolldown に任せる。
+**`renderChunk` ではなく `generateBundle` で書き換える理由**（15.2 で実測）: Vite の `vite:build-import-analysis` は `__vitePreload` の依存配列を `generateBundle` で解決し、その際に動的 import の指定子を手がかりに `bundle` のキーを引く。指定子を先に書き換えるとこのキー引きが失敗し、依存配列が空になって遅延チャンクの CSS がどこからも参照されなくなる。`order: 'post'` を指定すると Vite の内部プラグインより後に走るため、この衝突を避けられる。
+
+`chunk.code` を直接書き換えるため、`renderChunk` の戻り値による sourcemap の自動連結は使えない。`chunk.map` は変更しない（13 章の既知の制限を参照）。
 
 `__vitePreload` の依存配列は絶対パス（`/assets/dep.js`）、`import()` の指定子は相対パス（`./dep.js`）だが、同じ URL に解決され、同じ query が付くため、モジュールの二重取得は発生しない。
 
-### 6.3 実装前に実測で確認する前提
+### 6.3 実測で確認した前提（決着済み）
 
-**「`renderChunk` の時点でチャンク間 import 指定子が最終的な相対パスになっている」**ことは未検証の前提である。ハッシュを使わないため確定しているはずだが、Rolldown での挙動は実測していない。実装の最初のタスクとして最小 fixture を1つビルドして確認する。
+「チャンク間 import 指定子が最終的な相対パスになっている」ことは未検証の前提だったが、2つのスパイクで決着した。詳細は 15.1 と 15.2 に記録している。結論は次の2点。
 
-確認の結果、指定子が最終形でなかった場合は書き換えを `generateBundle` に移す。その場合 `chunk.code` を直接書き換えることになり、`chunk.map` を `magic-string` の生成するマップと自前でマージする必要が生じる。
+1. 出力ファイル名パターンから `[hash]` を外していれば、指定子は最終形になる（15.1）
+2. 書き換えは `renderChunk` ではなく `generateBundle`（`order: 'post'`）で行う必要がある（15.2）
 
 ## 7. エラー処理とガード
 
@@ -361,6 +364,7 @@ JS 文字列を直接入力して出力をアサートする。
 
 - `public/` は Vite が参照を追跡できる箇所（処理対象の HTML、`import` されたもの）のみ query が付く。ソース中に文字列でハードコードされた `/logo.png` のようなパスには付かない。同じファイルが query 付き／無しの2通りで取得される可能性はあるが、リクエストが1回増えるだけで不整合は起こらない
 - `base` に percent-encode を含む場合は非対応。Vite 内部が使う `decodedBase` が公開型に存在しないため
+- `build.sourcemap` を有効にしている場合、チャンク間 import を含む行のマッピングが query の長さ分ずれる。書き換えを `generateBundle` で行うため `renderChunk` の sourcemap 自動連結が使えず、`chunk.map` を変更しないため。import 指定子をデバッグする場面はほぼ無いこと、Vite の sourcemap が既定で無効であることから、v1 では合成せず制限として扱う
 - 相対 base（`base: ''` / `'./'`）非対応
 - ライブラリモード非対応
 - `@vitejs/plugin-legacy` の SystemJS 出力はチャンク間 import が書き換えられない
@@ -420,3 +424,21 @@ import { t as shared } from "./index.js";
 ```
 
 この結果を受けて 2 章のスコープに「出力ファイル名からのハッシュ除去」を追加し、6 章の `config` フックでパターンを設定する設計に改めた。**前提は「ファイル名パターンの設定が入っていれば成立する」が正しい結論である。**
+
+### 15.2 書き換えフックの決着（2026-07-31 追記）
+
+15.1 の結果を受けて `renderChunk` で書き換える実装を試したところ、**`__vitePreload` の依存配列が空になる**という機能退行が出た。
+
+Vite の `vite:build-import-analysis` は `__VITE_PRELOAD__` マーカーの置換を `generateBundle` で行い、その際に動的 import の指定子を手がかりに `bundle` のキー（`assets/lazy.js`）を引いて、対象チャンクの CSS 依存を集める。`renderChunk` で指定子を `./lazy.js?v=...` に書き換えると、このキー引きが失敗して依存配列が `[]` になる。結果、遅延チャンクの CSS がどこからも参照されなくなる。
+
+フックの実行順を実測したところ、Vite の内部プラグインは利用者プラグインの `generateBundle` より**後**に走ることが分かった（我々の `generateBundle` 時点で `__VITE_PRELOAD__` マーカーがまだ残っている）。そこで `generateBundle` を `{ order: 'post', handler }` の形にすると、Vite の処理が完了した後に走る。
+
+```
+at generateBundle{order:post} — marker already replaced by vite? : true
+mapDeps : __vite__mapDeps=(...(m.f=["/assets/lazy.js?v=testver","/assets/lazy.css?v=testver"])))
+dynamic import : __vitePreload(() => import("./lazy.js")
+```
+
+この時点で preload の依存配列には `renderBuiltUrl` 経由で既に query が付いており、残っているのは動的 import の指定子だけになる。よって **チャンク間 import の書き換えは `generateBundle`（`order: 'post'`）で行う**。
+
+代償として `renderChunk` の戻り値による sourcemap の自動連結が使えなくなるが、13 章の既知の制限として受け入れる。
