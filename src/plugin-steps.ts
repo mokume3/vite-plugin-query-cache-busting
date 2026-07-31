@@ -11,7 +11,7 @@ import {
   unverifiableFileNamePatternIssue,
   userHookReturnedObjectIssue,
 } from './guards'
-import { formatIssue, type Palette } from './logger'
+import { formatDiagnostic, type Palette } from './logger'
 import { appendQueryToBuiltUrl, joinUrlSegments } from './url'
 
 export type RenderBuiltUrl = NonNullable<NonNullable<UserConfig['experimental']>['renderBuiltUrl']>
@@ -19,8 +19,8 @@ type RenderBuiltUrlContext = Parameters<RenderBuiltUrl>[1]
 
 const DEFAULT_ASSETS_DIR = 'assets'
 
-function throwIssue(palette: Palette, issue: Parameters<typeof formatIssue>[2]): never {
-  throw new Error(formatIssue(palette, 'error', issue))
+function throwIssue(palette: Palette, issue: Parameters<typeof formatDiagnostic>[2]): never {
+  throw new Error(formatDiagnostic(palette, 'error', issue))
 }
 
 export type WorkerOutputKey = 'rollupOptions' | 'rolldownOptions'
@@ -106,11 +106,11 @@ export function applyResolvedConfigIssues(
   if (unverifiable.length > 0) warnings.push(unverifiableFileNamePatternIssue(unverifiable))
 
   for (const warning of warnings) {
-    resolvedConfig.logger.warn(formatIssue(palette, 'warn', warning))
+    resolvedConfig.logger.warn(formatDiagnostic(palette, 'warn', warning))
   }
 
   if (errors.length > 0) {
-    throw new Error(errors.map((issue) => formatIssue(palette, 'error', issue)).join('\n\n'))
+    throw new Error(errors.map((issue) => formatDiagnostic(palette, 'error', issue)).join('\n\n'))
   }
 }
 
@@ -127,7 +127,7 @@ export function resolveBuiltUrl(
 
   const fromUserHook = userRenderBuiltUrl?.(filename, context)
   if (typeof fromUserHook === 'object' && fromUserHook !== null) {
-    throw new Error(formatIssue(palette, 'error', userHookReturnedObjectIssue()))
+    throw new Error(formatDiagnostic(palette, 'error', userHookReturnedObjectIssue()))
   }
 
   const url =
