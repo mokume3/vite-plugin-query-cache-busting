@@ -17,12 +17,14 @@ query を付与する対象は **Vite がデフォルトでファイル名ハッ
 
 対象に含むもの:
 
+- **出力ファイル名からのハッシュ除去**（`entryFileNames` / `chunkFileNames` / `assetFileNames` を `[hash]` 無しに設定する）。worker は Vite が入れ子のビルドとして処理し `build.rollupOptions` が届かないため、`worker.rolldownOptions`（利用者が deprecated な `worker.rollupOptions` を使っている場合はそちら）にも同じパターンを渡す
 - HTML の `<script src>`（エントリチャンク）、`<link rel="stylesheet">`、`<link rel="modulepreload">`
 - CSS の `url()`
 - JS 内のアセット URL（`import img from './x.png'`、`new URL('./x.png', import.meta.url)`）
 - `__vitePreload` の依存配列
 - チャンク間の import 指定子（`import './dep.js'`、`import('./dep.js')`、`export * from './dep.js'`）
 - `public/` の参照のうち、Vite が解決できるもの（後述の制限あり）
+- `.vite/ssr-manifest.json` の各値（`build.ssrManifest` 有効時）
 
 対象に含まないもの:
 
@@ -97,13 +99,15 @@ v1 では include/exclude によるバンドル出力の絞り込みは設けな
 
 | ファイル | 責務 | 依存 |
 |---|---|---|
-| `src/index.ts` | プラグイン本体。フックを組み立てる薄い層 | 下記すべて |
+| `src/index.ts` | プラグインオブジェクトとクロージャの状態のみを持つ薄い層 | `src/plugin-steps.ts` |
+| `src/plugin-steps.ts` | 各フックが順に呼ぶステップ関数群 | 下記すべて |
 | `src/options.ts` | `Options` 型、デフォルト値、正規化 | なし |
 | `src/version.ts` | `YYYYMMDDHHmm` の生成、`version` オプションの解決 | なし |
-| `src/url.ts` | `appendQuery()` / `joinUrlSegments()` — 純粋関数 | なし |
+| `src/url.ts` | `appendQuery()` / `appendQueryToBuiltUrl()` / `joinUrlSegments()` — 純粋関数 | なし |
 | `src/rewrite-imports.ts` | 1チャンクぶんの import 指定子書き換え | `vite`(parseAst), `magic-string` |
 | `src/guards.ts` | 非対応構成の検出とエラー生成 | 型のみ |
 | `src/verify.ts` | 出力バンドルの取りこぼし検査 | なし |
+| `src/file-names.ts` | 出力ファイル名パターンの決定と `[hash]` 検出 | なし |
 | `src/logger.ts` | ログ整形 | `ansis` |
 
 `options.ts` / `version.ts` / `url.ts` / `guards.ts` / `verify.ts` は Vite を起動せずに単体テストできる。実際にビルドを回す必要があるのは `rewrite-imports.ts` と結合部分のみ。
@@ -125,7 +129,8 @@ v1 では include/exclude によるバンドル出力の絞り込みは設けな
 config(userConfig)
  ├─ 既存の experimental.renderBuiltUrl を退避
  ├─ version を解決（async 可・ビルド中1回だけ）
- └─ ラップした renderBuiltUrl を返す
+ ├─ 出力ファイル名パターンを [hash] 無しで決定（利用者の明示指定は尊重）
+ └─ ラップした renderBuiltUrl と fileNames パターンを返す
         ↓
 configResolved(config)
  ├─ guards: 非対応構成なら throw
@@ -138,12 +143,12 @@ configResolved(config)
  ├─ __vitePreload の deps 配列          │
  └─ public/ の参照                     ─┘
         ↓
-renderChunk(code, chunk)  [enforce: 'post']
- └─ parseAst + magic-string でチャンク間 import に ?v= を付与
-        ↓
-generateBundle(_, bundle)
+generateBundle(outputOptions, bundle)  [order: 'post']
  ├─ ラッパーが一度も呼ばれていなければ throw（API ドリフト検知）
- └─ verify: query 未付与の参照が残っていないか検査
+ ├─ parseAst + magic-string でチャンク間 import に ?v= を付与
+ ├─ manifest の file / css / assets と ssr-manifest の各値に ?v= を付与
+ ├─ verify: query 未付与の参照が残っていないか検査
+ └─ 付与件数のサマリを info ログに出す
 ```
 
 プラグインは `apply: 'build'` 固定、`enforce: 'post'`。
@@ -154,10 +159,10 @@ generateBundle(_, bundle)
 (filename, ctx) => {
   ctx.ssr が true       → 退避した既存フックの戻り値をそのまま返す（query を足さない）
   既存フックがあれば呼ぶ
-    → string を返した    → その値に appendQuery
+    → string を返した    → その値に appendQueryToBuiltUrl
     → object を返した    → エラー（{relative} / {runtime} は v1 非対応）
-    → undefined を返した → joinUrlSegments(config.base, filename) に appendQuery
-  既存フックが無い       → joinUrlSegments(config.base, filename) に appendQuery
+    → undefined を返した → joinUrlSegments(config.base, filename) に appendQueryToBuiltUrl
+  既存フックが無い       → joinUrlSegments(config.base, filename) に appendQueryToBuiltUrl
 }
 ```
 
@@ -165,7 +170,7 @@ generateBundle(_, bundle)
 
 ### 6.2 チャンク間 import の書き換え
 
-`renderChunk` で `parseAst`（Vite が re-export する oxc パーサ）により AST を取得し、以下4種類のノードのソース文字列リテラルのみを `magic-string` で書き換える。
+`generateBundle`（`order: 'post'`）で `parseAst`（Vite が re-export する oxc パーサ）により AST を取得し、以下4種類のノードのソース文字列リテラルのみを `magic-string` で書き換える。
 
 - `ImportDeclaration.source`
 - `ExportNamedDeclaration.source`
@@ -174,15 +179,18 @@ generateBundle(_, bundle)
 
 動的に組み立てられた `import(expr)` は対象外とする（Vite でも静的に解決できないため同じ扱い）。
 
-`renderChunk` から `{ code, map }` を返し、sourcemap の連結は Rolldown に任せる。
+**`renderChunk` ではなく `generateBundle` で書き換える理由**（15.2 で実測）: Vite の `vite:build-import-analysis` は `__vitePreload` の依存配列を `generateBundle` で解決し、その際に動的 import の指定子を手がかりに `bundle` のキーを引く。指定子を先に書き換えるとこのキー引きが失敗し、依存配列が空になって遅延チャンクの CSS がどこからも参照されなくなる。`order: 'post'` を指定すると Vite の内部プラグインより後に走るため、この衝突を避けられる。
+
+`chunk.code` を直接書き換えるため、`renderChunk` の戻り値による sourcemap の自動連結は使えない。`chunk.map` は変更しない（13 章の既知の制限を参照）。
 
 `__vitePreload` の依存配列は絶対パス（`/assets/dep.js`）、`import()` の指定子は相対パス（`./dep.js`）だが、同じ URL に解決され、同じ query が付くため、モジュールの二重取得は発生しない。
 
-### 6.3 実装前に実測で確認する前提
+### 6.3 実測で確認した前提（決着済み）
 
-**「`renderChunk` の時点でチャンク間 import 指定子が最終的な相対パスになっている」**ことは未検証の前提である。ハッシュを使わないため確定しているはずだが、Rolldown での挙動は実測していない。実装の最初のタスクとして最小 fixture を1つビルドして確認する。
+「チャンク間 import 指定子が最終的な相対パスになっている」ことは未検証の前提だったが、2つのスパイクで決着した。詳細は 15.1 と 15.2 に記録している。結論は次の2点。
 
-確認の結果、指定子が最終形でなかった場合は書き換えを `generateBundle` に移す。その場合 `chunk.code` を直接書き換えることになり、`chunk.map` を `magic-string` の生成するマップと自前でマージする必要が生じる。
+1. 出力ファイル名パターンから `[hash]` を外していれば、指定子は最終形になる（15.1）
+2. 書き換えは `renderChunk` ではなく `generateBundle`（`order: 'post'`）で行う必要がある（15.2）
 
 ## 7. エラー処理とガード
 
@@ -197,6 +205,8 @@ generateBundle(_, bundle)
 | `build.lib`（ライブラリモード） | `configResolved` | 配布物の import 指定子に query が付くと、利用側のバンドラや Node の解決が壊れる |
 | Vite のメジャーバージョンが 8 未満 | `configResolved` | `renderBuiltUrl` / `parseAst` の前提が揃わない |
 | 解決後の `renderBuiltUrl` が自分のラッパーでない | `configResolved` | 他プラグインに上書きされ、プラグインが無言で無効化された状態 |
+| 利用者が明示した出力ファイル名パターンに `[hash]` が含まれる | `configResolved` | ファイル名ハッシュと query の二重掛けになり、このプラグインを使う意味が無くなる |
+| `build.rollupOptions.output` が配列（複数出力） | `configResolved` | v1 では単一出力のみ対応 |
 | 既存の `renderBuiltUrl` が object（`{relative}` / `{runtime}`）を返す | ラッパー呼び出し時 | 実行時計算になるため相対 base と同じ理由 |
 | ラッパーがビルド中に一度も呼ばれず、かつ出力にアセット・CSS・HTML が存在する | `generateBundle` | Vite 側の API が変わったと判断する（12章のフォールバック判断材料） |
 
@@ -208,6 +218,7 @@ generateBundle(_, bundle)
 |---|---|
 | Vite のメジャーバージョンが 9 以上 | 未検証である旨を警告して続行。実害の検知は verify パスに委ねる |
 | `output.format` が `es` 以外（`@vitejs/plugin-legacy` 併用時の SystemJS など） | チャンク間 import を書き換えられない旨を警告。`System.register` の依存配列は AST の import ノードではないため v1 では対象外 |
+| 利用者が出力ファイル名パターンを**関数**で指定している | `[hash]` を含むかを静的に検証できない旨を警告して続行 |
 
 ### 7.3 自己検証パス（`verify`）
 
@@ -355,10 +366,13 @@ JS 文字列を直接入力して出力をアサートする。
 
 - `public/` は Vite が参照を追跡できる箇所（処理対象の HTML、`import` されたもの）のみ query が付く。ソース中に文字列でハードコードされた `/logo.png` のようなパスには付かない。同じファイルが query 付き／無しの2通りで取得される可能性はあるが、リクエストが1回増えるだけで不整合は起こらない
 - `base` に percent-encode を含む場合は非対応。Vite 内部が使う `decodedBase` が公開型に存在しないため
+- `build.sourcemap` を有効にしている場合、チャンク間 import を含む行のマッピングが query の長さ分ずれる。書き換えを `generateBundle` で行うため `renderChunk` の sourcemap 自動連結が使えず、`chunk.map` を変更しないため。import 指定子をデバッグする場面はほぼ無いこと、Vite の sourcemap が既定で無効であることから、v1 では合成せず制限として扱う
 - 相対 base（`base: ''` / `'./'`）非対応
 - ライブラリモード非対応
 - `@vitejs/plugin-legacy` の SystemJS 出力はチャンク間 import が書き換えられない
 - 上書きデプロイ中、古い HTML を持つクライアントは新しい中身のファイルを受け取る（3章）
+- ファイル名にハッシュが無いため、同じ `[name]` を持つチャンクが複数あると名前が衝突する。Rolldown が連番を付けて回避するが、その連番はビルドごとに安定するとは限らない
+- `build.rollupOptions.output` が配列（複数出力）の構成は非対応
 
 ## 14. 却下した代替案
 
@@ -393,4 +407,51 @@ JS 文字列を直接入力して出力をアサートする。
 - `joinUrlSegments` は `vite` の公開 export に含まれない
 - `ansis@4.3.1` は依存ゼロで、名前付き export（`red` / `cyan` / `dim` / `bold` など）と `Ansis` クラスを提供する
 
-**未検証の前提**: `renderChunk` の時点でチャンク間 import 指定子が最終的な相対パスになっているか（6.3、実装の最初のタスクで確認する）
+### 15.1 スパイクで実測した結果（2026-07-31 追記）
+
+6.3 の未検証の前提を実測したところ、**ファイル名パターンに `[hash]` が残っている限り成立しない**ことが判明した。Vite のデフォルト設定（`assets/[name]-[hash].js`）のままビルドすると、`renderChunk` には次のようにハッシュのプレースホルダが渡ってくる。
+
+```
+__vitePreload(() => import("./lazy-!~{001}~.js"), __VITE_PRELOAD__);
+import { t as shared } from "./index-!~{000}~.js";
+```
+
+`entryFileNames` / `chunkFileNames` / `assetFileNames` から `[hash]` を外して同じ fixture をビルドすると、プレースホルダは消え、指定子は最終的な相対パスになる。
+
+```
+出力ファイル名: assets/index.js, assets/lazy.js, assets/index.css, assets/lazy.css, assets/logo.svg, index.html
+プレースホルダ /!~\{[0-9a-z]+\}~/ の有無: false
+__vitePreload(() => import("./lazy.js"), __VITE_PRELOAD__);
+import { t as shared } from "./index.js";
+```
+
+この結果を受けて 2 章のスコープに「出力ファイル名からのハッシュ除去」を追加し、6 章の `config` フックでパターンを設定する設計に改めた。**前提は「ファイル名パターンの設定が入っていれば成立する」が正しい結論である。**
+
+### 15.2 書き換えフックの決着（2026-07-31 追記）
+
+15.1 の結果を受けて `renderChunk` で書き換える実装を試したところ、**`__vitePreload` の依存配列が空になる**という機能退行が出た。
+
+Vite の `vite:build-import-analysis` は `__VITE_PRELOAD__` マーカーの置換を `generateBundle` で行い、その際に動的 import の指定子を手がかりに `bundle` のキー（`assets/lazy.js`）を引いて、対象チャンクの CSS 依存を集める。`renderChunk` で指定子を `./lazy.js?v=...` に書き換えると、このキー引きが失敗して依存配列が `[]` になる。結果、遅延チャンクの CSS がどこからも参照されなくなる。
+
+フックの実行順を実測したところ、Vite の内部プラグインは利用者プラグインの `generateBundle` より**後**に走ることが分かった（我々の `generateBundle` 時点で `__VITE_PRELOAD__` マーカーがまだ残っている）。そこで `generateBundle` を `{ order: 'post', handler }` の形にすると、Vite の処理が完了した後に走る。
+
+```
+at generateBundle{order:post} — marker already replaced by vite? : true
+mapDeps : __vite__mapDeps=(...(m.f=["/assets/lazy.js?v=testver","/assets/lazy.css?v=testver"])))
+dynamic import : __vitePreload(() => import("./lazy.js")
+```
+
+この時点で preload の依存配列には `renderBuiltUrl` 経由で既に query が付いており、残っているのは動的 import の指定子だけになる。よって **チャンク間 import の書き換えは `generateBundle`（`order: 'post'`）で行う**。
+
+代償として `renderChunk` の戻り値による sourcemap の自動連結が使えなくなるが、13 章の既知の制限として受け入れる。
+
+
+### 15.3 最終レビューで潰した5件（2026-07-31 追記）
+
+全ブランチレビューで、いずれも実測で再現された Important 5件を修正した。
+
+1. **絶対URLの `base`（CDN）で半分しかクエリが付かなかった** — `appendQuery` の外部URL判定が、自分で組み立てた CDN の URL まで素通ししていた。`src/url.ts` に `appendQueryToBuiltUrl` を追加し、`renderBuiltUrl` ラッパーだけがこちらを使う。`data:` と `blob:` のみ対象外。既存の `appendQuery` は manifest とチャンク import の書き換えで使い続ける（そこでは外部化された依存を触らない挙動が正しいため）
+2. **SSR ビルドの出力ファイル名まで書き換わっていた** — `config` フックが top-level の `build.rollupOptions.output` をパッチしており SSR 環境が継承していた。パッチ先を `environments.client.build.rollupOptions.output` に変更
+3. **`build.ssrManifest` にクエリが付かなかった** — 同じファイルがサーバ側とクライアント側で別 URL になっていた。`rewriteSsrManifest` を追加。キーはモジュールIDなので触らず、値の配列だけ書き換える
+4. **`assetsDir: ''` で verify が誤検出していた** — 参照名が短くなり未圧縮コードのコメントに誤マッチしていた。境界判定を「直前・直後が名前構成文字でない」に加えて「パス構成文字を後ろ向きに辿った先が URL を開く区切り文字（`"` `'` `` ` `` `(` `=`）である」の併用に変更。パス構成文字にコロンを含めるのが要点で、含めないと `https://` で走査が止まり CDN の URL を検出できなくなる
+5. **worker の `[hash]` エラーが誤った設定キーを指していた** — Issue ファクトリ側の前置をやめ、呼び出し側が完全な設定パスを渡す形に変更

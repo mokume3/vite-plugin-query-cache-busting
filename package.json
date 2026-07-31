@@ -1,39 +1,61 @@
 {
-  "name": "tsdown-starter",
-  "type": "module",
+  "name": "vite-plugin-query-cache-busting",
   "version": "0.0.0",
-  "description": "A starter for creating a TypeScript package.",
-  "author": "Author Name <author.name@mail.com>",
+  "description": "Vite plugin that busts caches with a query parameter instead of a filename hash.",
+  "keywords": [
+    "cache",
+    "cache-busting",
+    "query",
+    "vite",
+    "vite-plugin"
+  ],
+  "homepage": "https://github.com/mokume3/vite-plugin-query-cache-busting#readme",
+  "bugs": {
+    "url": "https://github.com/mokume3/vite-plugin-query-cache-busting/issues"
+  },
   "license": "MIT",
-  "homepage": "https://github.com/author/library#readme",
+  "author": "Sagara <mokume.dev@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/author/library.git"
-  },
-  "bugs": {
-    "url": "https://github.com/author/library/issues"
-  },
-  "exports": {
-    ".": "./dist/index.mjs",
-    "./package.json": "./package.json"
+    "url": "git+https://github.com/mokume3/vite-plugin-query-cache-busting.git"
   },
   "files": [
     "dist"
   ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "check": "bun run lint && bun run format:check && bun run typecheck",
     "release": "bumpp",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "ansis": "^4.3.1",
+    "magic-string": "^0.30.21"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
     "bumpp": "^11.1.0",
+    "oxfmt": "^0.61.0",
+    "oxlint": "^1.76.0",
     "tsdown": "^0.22.5",
     "typescript": "^7.0.2",
+    "vite": "^8.2.0",
     "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "vite": "^8.0.0"
   },
   "packageManager": "bun@1.3.14"
 }
