@@ -80,7 +80,7 @@
 [QCB_MISSING_QUERY] warn  query 未付与の参照が 2 件あります
 ├▶ fix: ソース中に文字列でハードコードされたパスの可能性があります。意図的な場合は verify: 'off' で抑制できます。
 ├▶ sources: assets/index.js:1:2043
-╰▶ sources: assets/manifest.json:1:88
+╰▶ sources: assets/index.css:1:88
 ```
 
 **成功時サマリ**（変更なし。診断ではなく単なる info ログなので対象外）

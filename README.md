@@ -86,7 +86,7 @@ verify の警告・エラーは、取りこぼした参照の位置を `sources`
 [QCB_MISSING_QUERY] warn  query 未付与の参照が 2 件あります
 ├▶ fix: ソース中に文字列でハードコードされたパスの可能性があります。意図的な場合は verify: 'off' で抑制できます。
 ├▶ sources: assets/index.js:1:2043
-╰▶ sources: assets/manifest.json:1:88
+╰▶ sources: assets/index.css:1:88
 ```
 
 ## 非対応の構成
