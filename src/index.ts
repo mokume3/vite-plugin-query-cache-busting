@@ -39,6 +39,7 @@ export function queryCacheBusting(options: Options = {}): Plugin {
   let config: ResolvedConfig
   let userRenderBuiltUrl: RenderBuiltUrl | undefined
   let fileNames: FileNamesDecision = { patch: {}, hashed: [], unverifiable: [] }
+  let workerFileNames: FileNamesDecision = { patch: {}, hashed: [], unverifiable: [] }
   let wrapperCalled = false
   const renderBuiltUrl: RenderBuiltUrl = (filename, context) => {
     wrapperCalled = true
@@ -53,16 +54,15 @@ export function queryCacheBusting(options: Options = {}): Plugin {
     async config(userConfig) {
       userRenderBuiltUrl = userConfig.experimental?.renderBuiltUrl
       query = buildQuery(resolved.key, await resolveVersion(resolved.version))
-      fileNames = resolveFileNames(palette, userConfig)
-      return {
-        build: { rollupOptions: { output: fileNames.patch } },
-        experimental: { renderBuiltUrl },
-      }
+      const decided = decideOutputFileNames(palette, userConfig)
+      fileNames = decided.fileNames
+      workerFileNames = decided.workerFileNames
+      return { build: decided.build, worker: decided.worker, experimental: { renderBuiltUrl } }
     },
 
     configResolved(resolvedConfig) {
       config = resolvedConfig
-      applyResolvedConfigIssues(palette, resolvedConfig, renderBuiltUrl, fileNames)
+      applyResolvedConfigIssues(palette, resolvedConfig, renderBuiltUrl, fileNames, workerFileNames)
     },
 
     // vite:build-import-analysis の __vitePreload 依存配列解決（指定子文字列で bundle を
@@ -85,6 +85,9 @@ export function queryCacheBusting(options: Options = {}): Plugin {
 
 export default queryCacheBusting
 
+function throwIssue(palette: Palette, issue: Parameters<typeof formatIssue>[2]): never {
+  throw new Error(formatIssue(palette, 'error', issue))
+}
 /** config.build.manifest から、書き換え対象の manifest ファイル名を決める */
 function resolveManifestTarget(config: ResolvedConfig): {
   manifestOption: ResolvedConfig['build']['manifest']
@@ -96,17 +99,22 @@ function resolveManifestTarget(config: ResolvedConfig): {
   return { manifestOption, manifestFileName }
 }
 
-/** build.rollupOptions.output の形から、出力ファイル名の書き換え方針を決める */
-function resolveFileNames(palette: Palette, userConfig: UserConfig): FileNamesDecision {
-  const userOutput = userConfig.build?.rollupOptions?.output
-  if (Array.isArray(userOutput)) {
-    throw new Error(formatIssue(palette, 'error', multipleOutputsIssue()))
+/** config フックが返す build/worker のパッチと、あとで使う fileNames・workerFileNames をまとめて決める */
+function decideOutputFileNames(palette: Palette, userConfig: UserConfig) {
+  const assetsDir = userConfig.build?.assetsDir ?? DEFAULT_ASSETS_DIR
+  const key = userConfig.worker?.rollupOptions ? 'rollupOptions' : 'rolldownOptions'
+  const output = userConfig.build?.rollupOptions?.output
+  const workerOut =
+    userConfig.worker?.rolldownOptions?.output ?? userConfig.worker?.rollupOptions?.output
+  if (Array.isArray(output) || Array.isArray(workerOut)) throwIssue(palette, multipleOutputsIssue())
+  const fileNames = decideFileNames((output ?? {}) as Record<string, unknown>, assetsDir)
+  const workerFileNames = decideFileNames((workerOut ?? {}) as Record<string, unknown>, assetsDir)
+  return {
+    fileNames,
+    workerFileNames,
+    build: { rollupOptions: { output: fileNames.patch } },
+    worker: { [key]: { output: workerFileNames.patch } },
   }
-
-  return decideFileNames(
-    (userOutput ?? {}) as Record<string, unknown>,
-    userConfig.build?.assetsDir ?? DEFAULT_ASSETS_DIR,
-  )
 }
 
 /** configResolved 時点の設定値から問題を集め、警告ログと例外に変換する */
@@ -115,6 +123,7 @@ function applyResolvedConfigIssues(
   resolvedConfig: ResolvedConfig,
   renderBuiltUrl: RenderBuiltUrl,
   fileNames: FileNamesDecision,
+  workerFileNames: FileNamesDecision,
 ): void {
   const { errors, warnings } = collectConfigIssues({
     base: resolvedConfig.base,
@@ -122,23 +131,16 @@ function applyResolvedConfigIssues(
     chunkImportMap: Boolean((resolvedConfig.build as { chunkImportMap?: unknown }).chunkImportMap),
     viteMajor: parseMajor(viteVersion),
   })
-
   if (resolvedConfig.experimental.renderBuiltUrl !== renderBuiltUrl) {
     errors.push(hijackedRenderBuiltUrlIssue())
   }
-
-  if (fileNames.hashed.length > 0) {
-    errors.push(hashedFileNamePatternIssue(fileNames.hashed))
-  }
-
-  if (fileNames.unverifiable.length > 0) {
-    warnings.push(unverifiableFileNamePatternIssue(fileNames.unverifiable))
-  }
-
+  const hashed = [...fileNames.hashed, ...workerFileNames.hashed]
+  const unverifiable = [...fileNames.unverifiable, ...workerFileNames.unverifiable]
+  if (hashed.length > 0) errors.push(hashedFileNamePatternIssue(hashed))
+  if (unverifiable.length > 0) warnings.push(unverifiableFileNamePatternIssue(unverifiable))
   for (const warning of warnings) {
     resolvedConfig.logger.warn(formatIssue(palette, 'warn', warning))
   }
-
   if (errors.length > 0) {
     throw new Error(errors.map((issue) => formatIssue(palette, 'error', issue)).join('\n\n'))
   }
@@ -179,9 +181,7 @@ function detectApiDrift(
       !output.fileName.endsWith('.json'),
   )
 
-  if (!wrapperCalled && hasRenderableAssets) {
-    throw new Error(formatIssue(palette, 'error', apiDriftIssue()))
-  }
+  if (!wrapperCalled && hasRenderableAssets) throwIssue(palette, apiDriftIssue())
 }
 
 /** ES 形式の出力に限り、チャンク間 import の指定子に query を書き換える */
