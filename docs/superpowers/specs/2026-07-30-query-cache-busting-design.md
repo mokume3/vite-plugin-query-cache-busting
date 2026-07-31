@@ -24,6 +24,7 @@ query を付与する対象は **Vite がデフォルトでファイル名ハッ
 - `__vitePreload` の依存配列
 - チャンク間の import 指定子（`import './dep.js'`、`import('./dep.js')`、`export * from './dep.js'`）
 - `public/` の参照のうち、Vite が解決できるもの（後述の制限あり）
+- `.vite/ssr-manifest.json` の各値（`build.ssrManifest` 有効時）
 
 対象に含まないもの:
 
@@ -443,3 +444,14 @@ dynamic import : __vitePreload(() => import("./lazy.js")
 この時点で preload の依存配列には `renderBuiltUrl` 経由で既に query が付いており、残っているのは動的 import の指定子だけになる。よって **チャンク間 import の書き換えは `generateBundle`（`order: 'post'`）で行う**。
 
 代償として `renderChunk` の戻り値による sourcemap の自動連結が使えなくなるが、13 章の既知の制限として受け入れる。
+
+
+### 15.3 最終レビューで潰した5件（2026-07-31 追記）
+
+全ブランチレビューで、いずれも実測で再現された Important 5件を修正した。
+
+1. **絶対URLの `base`（CDN）で半分しかクエリが付かなかった** — `appendQuery` の外部URL判定が、自分で組み立てた CDN の URL まで素通ししていた。`src/url.ts` に `appendQueryToBuiltUrl` を追加し、`renderBuiltUrl` ラッパーだけがこちらを使う。`data:` と `blob:` のみ対象外。既存の `appendQuery` は manifest とチャンク import の書き換えで使い続ける（そこでは外部化された依存を触らない挙動が正しいため）
+2. **SSR ビルドの出力ファイル名まで書き換わっていた** — `config` フックが top-level の `build.rollupOptions.output` をパッチしており SSR 環境が継承していた。パッチ先を `environments.client.build.rollupOptions.output` に変更
+3. **`build.ssrManifest` にクエリが付かなかった** — 同じファイルがサーバ側とクライアント側で別 URL になっていた。`rewriteSsrManifest` を追加。キーはモジュールIDなので触らず、値の配列だけ書き換える
+4. **`assetsDir: ''` で verify が誤検出していた** — 参照名が短くなり未圧縮コードのコメントに誤マッチしていた。境界判定を「直前・直後が名前構成文字でない」に加えて「パス構成文字を後ろ向きに辿った先が URL を開く区切り文字（`"` `'` `` ` `` `(` `=`）である」の併用に変更。パス構成文字にコロンを含めるのが要点で、含めないと `https://` で走査が止まり CDN の URL を検出できなくなる
+5. **worker の `[hash]` エラーが誤った設定キーを指していた** — Issue ファクトリ側の前置をやめ、呼び出し側が完全な設定パスを渡す形に変更

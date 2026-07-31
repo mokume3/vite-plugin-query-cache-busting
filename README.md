@@ -67,6 +67,9 @@ queryCacheBusting({
 - `__vitePreload` の依存配列
 - チャンク間の import 指定子
 - `.vite/manifest.json` の `file` / `css` / `assets`
+- `.vite/ssr-manifest.json` の各値（`build.ssrManifest` 有効時）
+
+SSR ビルド（`vite build --ssr`）には何もしません。出力ファイル名も参照もそのままです。サーバ側のバンドルに query が付くと Node のモジュール解決が壊れるためです。
 
 ## 非対応の構成
 
