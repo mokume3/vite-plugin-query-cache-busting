@@ -32,4 +32,29 @@ describe('worker fixture', () => {
 
     expectAllReferencesBusted(files, 'v=testver')
   })
+
+  test('worker のファイル名パターンに [hash] があるとビルドを落とす', async () => {
+    await expect(
+      buildFixture(
+        root,
+        { version: 'testver' },
+        {
+          worker: { rolldownOptions: { output: { entryFileNames: 'assets/[name]-[hash].js' } } },
+        },
+      ),
+    ).rejects.toThrow(/\[hash\]/)
+  })
+
+  test('deprecated な worker.rollupOptions での明示指定も尊重する', async () => {
+    const files = await buildFixture(
+      root,
+      { version: 'testver' },
+      {
+        worker: { rollupOptions: { output: { entryFileNames: 'w/[name].js' } } },
+      },
+    )
+
+    expect(files.some((file) => file.fileName === 'w/worker.js')).toBe(true)
+    expectAllReferencesBusted(files, 'v=testver')
+  })
 })

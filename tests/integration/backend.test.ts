@@ -28,7 +28,7 @@ describe('backend fixture（HTML 無し・manifest あり）', () => {
     expect(entries.length).toBeGreaterThan(0)
 
     for (const entry of entries) {
-      expect(entry.file).toMatch(/\?v=testver$/)
+      expect(entry.file).toMatch(/\.js\?v=testver$/)
     }
   })
 
