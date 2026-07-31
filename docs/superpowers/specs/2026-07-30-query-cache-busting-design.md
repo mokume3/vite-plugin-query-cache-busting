@@ -98,7 +98,8 @@ v1 では include/exclude によるバンドル出力の絞り込みは設けな
 
 | ファイル | 責務 | 依存 |
 |---|---|---|
-| `src/index.ts` | プラグイン本体。フックを組み立てる薄い層 | 下記すべて |
+| `src/index.ts` | プラグインオブジェクトとクロージャの状態のみを持つ薄い層 | `src/plugin-steps.ts` |
+| `src/plugin-steps.ts` | 各フックが順に呼ぶステップ関数群 | 下記すべて |
 | `src/options.ts` | `Options` 型、デフォルト値、正規化 | なし |
 | `src/version.ts` | `YYYYMMDDHHmm` の生成、`version` オプションの解決 | なし |
 | `src/url.ts` | `appendQuery()` / `joinUrlSegments()` — 純粋関数 | なし |
