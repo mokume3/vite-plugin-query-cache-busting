@@ -97,7 +97,8 @@ describe('個別の Diagnostic', () => {
 
     for (const issue of issues) {
       expect(issue.message.length).toBeGreaterThan(0)
-      expect(issue.fix?.length ?? 0).toBeGreaterThan(0)
+      expect(issue.fix).toBeDefined()
+      expect(issue.fix).not.toBe('')
     }
   })
 
