@@ -103,7 +103,7 @@ v1 では include/exclude によるバンドル出力の絞り込みは設けな
 | `src/plugin-steps.ts` | 各フックが順に呼ぶステップ関数群 | 下記すべて |
 | `src/options.ts` | `Options` 型、デフォルト値、正規化 | なし |
 | `src/version.ts` | `YYYYMMDDHHmm` の生成、`version` オプションの解決 | なし |
-| `src/url.ts` | `appendQuery()` / `joinUrlSegments()` — 純粋関数 | なし |
+| `src/url.ts` | `appendQuery()` / `appendQueryToBuiltUrl()` / `joinUrlSegments()` — 純粋関数 | なし |
 | `src/rewrite-imports.ts` | 1チャンクぶんの import 指定子書き換え | `vite`(parseAst), `magic-string` |
 | `src/guards.ts` | 非対応構成の検出とエラー生成 | 型のみ |
 | `src/verify.ts` | 出力バンドルの取りこぼし検査 | なし |
@@ -146,7 +146,7 @@ configResolved(config)
 generateBundle(outputOptions, bundle)  [order: 'post']
  ├─ ラッパーが一度も呼ばれていなければ throw（API ドリフト検知）
  ├─ parseAst + magic-string でチャンク間 import に ?v= を付与
- ├─ manifest の file / css / assets に ?v= を付与
+ ├─ manifest の file / css / assets と ssr-manifest の各値に ?v= を付与
  ├─ verify: query 未付与の参照が残っていないか検査
  └─ 付与件数のサマリを info ログに出す
 ```
@@ -159,10 +159,10 @@ generateBundle(outputOptions, bundle)  [order: 'post']
 (filename, ctx) => {
   ctx.ssr が true       → 退避した既存フックの戻り値をそのまま返す（query を足さない）
   既存フックがあれば呼ぶ
-    → string を返した    → その値に appendQuery
+    → string を返した    → その値に appendQueryToBuiltUrl
     → object を返した    → エラー（{relative} / {runtime} は v1 非対応）
-    → undefined を返した → joinUrlSegments(config.base, filename) に appendQuery
-  既存フックが無い       → joinUrlSegments(config.base, filename) に appendQuery
+    → undefined を返した → joinUrlSegments(config.base, filename) に appendQueryToBuiltUrl
+  既存フックが無い       → joinUrlSegments(config.base, filename) に appendQueryToBuiltUrl
 }
 ```
 
