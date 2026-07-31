@@ -7,6 +7,7 @@ import {
   collectManifestImportKeys,
   expectAllReferencesBusted,
   readManifest,
+  readSsrManifest,
 } from '../helpers/build'
 
 const backendRoot = fileURLToPath(new URL('../fixtures/backend', import.meta.url))
@@ -48,5 +49,27 @@ describe('backend fixture（HTML 無し・manifest あり）', () => {
     const files = await buildFixture(backendRoot, { version: 'testver' }, backendOverrides)
 
     expectAllReferencesBusted(files, 'v=testver')
+  })
+
+  test('ssrManifest の値（URL 配列）すべてに query が付く', async () => {
+    const files = await buildFixture(
+      backendRoot,
+      { version: 'testver' },
+      {
+        ...backendOverrides,
+        build: { ...backendOverrides.build, ssrManifest: true },
+      },
+    )
+    const ssrManifest = readSsrManifest(files)
+    const values = Object.values(ssrManifest)
+
+    expect(values.length).toBeGreaterThan(0)
+
+    for (const value of values) {
+      expect(Array.isArray(value)).toBe(true)
+      for (const url of value as string[]) {
+        expect(url).toMatch(/\?v=testver$/)
+      }
+    }
   })
 })

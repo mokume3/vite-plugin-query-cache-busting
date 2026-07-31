@@ -73,6 +73,20 @@ describe('basic fixture', () => {
     expectAllReferencesBusted(files, 'testver')
   })
 
+  test('絶対 URL の base（CDN）でも script src に query が付く', async () => {
+    const files = await buildFixture(
+      basicRoot,
+      { version: 'testver' },
+      { base: 'https://cdn.example.com/' },
+    )
+    const html = filesByExtension(files, '.html')[0]
+
+    expect(html?.content).toMatch(
+      /<script[^>]+src="https:\/\/cdn\.example\.com\/assets\/[\w.-]+\.js\?v=testver"/,
+    )
+    expectAllReferencesBusted(files, query)
+  })
+
   test('version 以外はビルド間で差分が出ない（書き換えが決定的）', async () => {
     const first = await buildFixture(basicRoot, { version: 'aaa' })
     const second = await buildFixture(basicRoot, { version: 'bbb' })

@@ -156,10 +156,10 @@ export function manifestMissingIssue(manifestFileName: string): Issue {
   }
 }
 
-export function hashedFileNamePatternIssue(keys: string[]): Issue {
+export function hashedFileNamePatternIssue(paths: string[]): Issue {
   return {
     title: '出力ファイル名パターンに [hash] が含まれています',
-    details: keys.map((key) => `build.rollupOptions.output.${key}`),
+    details: paths,
     hints: [
       'ファイル名ハッシュと query の二重掛けになり、このプラグインを使う意味が',
       'なくなります。パターンから [hash] を外してください。',
@@ -167,10 +167,10 @@ export function hashedFileNamePatternIssue(keys: string[]): Issue {
   }
 }
 
-export function unverifiableFileNamePatternIssue(keys: string[]): Issue {
+export function unverifiableFileNamePatternIssue(paths: string[]): Issue {
   return {
     title: '出力ファイル名パターンが関数で指定されているため検証できません',
-    details: keys.map((key) => `build.rollupOptions.output.${key}`),
+    details: paths,
     hints: [
       '関数が [hash] を含む名前を返さないか、静的に判定できません。',
       'ビルド後に出力ファイル名にハッシュが付いていないか確認してください。',

@@ -84,4 +84,39 @@ describe('findMissingQuery', () => {
     expect(finding?.snippet).toBe('<script src="/assets/a.js"></script>')
     expect(finding?.caretOffset).toBe(14)
   })
+
+  test('assetsDir: "" によるコメント行内の偶然の一致は検出しない', () => {
+    const files = [
+      {
+        fileName: 'assets/index.js',
+        content: '//#region tests/fixtures/basic/src/logo.svg\nconsole.log(1)',
+      },
+    ]
+    expect(findMissingQuery(files, ['logo.svg'], 'v=1')).toEqual([])
+  })
+
+  test('引き続き検出する: <script src="...">', () => {
+    const files = [{ fileName: 'index.html', content: '<script src="/assets/a.js"></script>' }]
+    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toHaveLength(1)
+  })
+
+  test('引き続き検出する: url(...) （( が区切り）', () => {
+    const files = [{ fileName: 'assets/a.css', content: '.x{background:url(/assets/logo.svg)}' }]
+    expect(findMissingQuery(files, ['assets/logo.svg'], 'v=1')).toHaveLength(1)
+  })
+
+  test('引き続き検出する: 配列リテラル内の文字列（" が区切り）', () => {
+    const files = [{ fileName: 'assets/a.js', content: 'm.f=["/assets/lazy.js"]' }]
+    expect(findMissingQuery(files, ['assets/lazy.js'], 'v=1')).toHaveLength(1)
+  })
+
+  test('CDN の絶対 URL（コロンを含む）を検出する（検出漏れの回帰テスト）', () => {
+    const files = [
+      {
+        fileName: 'index.html',
+        content: '<script src="https://cdn.example.com/assets/index.js"></script>',
+      },
+    ]
+    expect(findMissingQuery(files, ['assets/index.js'], 'v=1')).toHaveLength(1)
+  })
 })

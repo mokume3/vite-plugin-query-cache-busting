@@ -2,7 +2,12 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
 
-import { buildFixture, expectAllReferencesBusted, filesByExtension } from '../helpers/build'
+import {
+  buildFixture,
+  expectAllReferencesBusted,
+  filesByExtension,
+  rejectionMessage,
+} from '../helpers/build'
 
 const root = fileURLToPath(new URL('../fixtures/worker', import.meta.url))
 
@@ -43,6 +48,21 @@ describe('worker fixture', () => {
         },
       ),
     ).rejects.toThrow(/\[hash\]/)
+  })
+
+  test('worker の [hash] エラーは worker.rolldownOptions.output を指し、build.rollupOptions とは言わない', async () => {
+    const message = await rejectionMessage(
+      buildFixture(
+        root,
+        { version: 'testver' },
+        {
+          worker: { rolldownOptions: { output: { entryFileNames: 'assets/[name]-[hash].js' } } },
+        },
+      ),
+    )
+
+    expect(message).toMatch(/worker\.rolldownOptions\.output\.entryFileNames/)
+    expect(message).not.toMatch(/build\.rollupOptions/)
   })
 
   test('deprecated な worker.rollupOptions での明示指定も尊重する', async () => {

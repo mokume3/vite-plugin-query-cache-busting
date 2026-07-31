@@ -109,16 +109,21 @@ describe('個別の Issue', () => {
     expect(manifestMissingIssue('.vite/manifest.json').details.join('')).toMatch(/manifest\.json/)
   })
 
-  test('hashedFileNamePatternIssue は該当キー名を含む', () => {
-    const issue = hashedFileNamePatternIssue(['entryFileNames', 'chunkFileNames'])
+  test('hashedFileNamePatternIssue は渡した文字列をそのまま details に並べる（前置しない）', () => {
+    const issue = hashedFileNamePatternIssue([
+      'build.rollupOptions.output.entryFileNames',
+      'worker.rolldownOptions.output.chunkFileNames',
+    ])
 
-    expect(issue.details.join('')).toMatch(/entryFileNames/)
-    expect(issue.details.join('')).toMatch(/chunkFileNames/)
+    expect(issue.details).toEqual([
+      'build.rollupOptions.output.entryFileNames',
+      'worker.rolldownOptions.output.chunkFileNames',
+    ])
   })
 
-  test('unverifiableFileNamePatternIssue は該当キー名を含む', () => {
-    expect(unverifiableFileNamePatternIssue(['assetFileNames']).details.join('')).toMatch(
-      /assetFileNames/,
-    )
+  test('unverifiableFileNamePatternIssue は渡した文字列をそのまま details に並べる（前置しない）', () => {
+    expect(
+      unverifiableFileNamePatternIssue(['worker.rollupOptions.output.assetFileNames']).details,
+    ).toEqual(['worker.rollupOptions.output.assetFileNames'])
   })
 })

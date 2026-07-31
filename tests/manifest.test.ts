@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { rewriteManifest } from '../src/manifest'
+import { rewriteManifest, rewriteSsrManifest } from '../src/manifest'
 
 const parse = (source: string): Record<string, Record<string, unknown>> =>
   JSON.parse(source) as Record<string, Record<string, unknown>>
@@ -65,5 +65,49 @@ describe('rewriteManifest', () => {
     const source = JSON.stringify({ 'src/main.ts': { file: 'assets/main.js' } })
 
     expect(rewriteManifest(source, 'v=1')).toContain('\n  "src/main.ts"')
+  })
+})
+
+describe('rewriteSsrManifest', () => {
+  test('値の配列の各要素に query を付与する', () => {
+    const source = JSON.stringify({ 'src/lazy.css': ['/assets/lazy.js', '/assets/lazy.css'] })
+    const manifest = JSON.parse(rewriteSsrManifest(source, 'v=1')) as Record<string, string[]>
+
+    expect(manifest['src/lazy.css']).toEqual(['/assets/lazy.js?v=1', '/assets/lazy.css?v=1'])
+  })
+
+  test('キー（モジュール ID）は書き換えない', () => {
+    const source = JSON.stringify({ 'lazy.js': ['/assets/lazy.css'] })
+    const manifest = JSON.parse(rewriteSsrManifest(source, 'v=1')) as Record<string, unknown>
+
+    expect(Object.keys(manifest)).toEqual(['lazy.js'])
+  })
+
+  test('NUL 文字を含む内部 ID のキーが壊れない', () => {
+    const key = '\0../../../ vite/modulepreload-polyfill.js'
+    const source = JSON.stringify({ [key]: ['/assets/polyfill.js'] })
+    const manifest = JSON.parse(rewriteSsrManifest(source, 'v=1')) as Record<string, string[]>
+
+    expect(manifest[key]).toEqual(['/assets/polyfill.js?v=1'])
+  })
+
+  test('値が配列でなければそのまま返す', () => {
+    const source = JSON.stringify({ 'src/main.ts': 'not-an-array' })
+    const manifest = JSON.parse(rewriteSsrManifest(source, 'v=1')) as Record<string, unknown>
+
+    expect(manifest['src/main.ts']).toBe('not-an-array')
+  })
+
+  test('配列内の非文字列要素はそのまま返す', () => {
+    const source = JSON.stringify({ 'src/main.ts': ['/assets/a.js', 1] })
+    const manifest = JSON.parse(rewriteSsrManifest(source, 'v=1')) as Record<string, unknown[]>
+
+    expect(manifest['src/main.ts']).toEqual(['/assets/a.js?v=1', 1])
+  })
+
+  test('2 スペースインデントの JSON を返す', () => {
+    const source = JSON.stringify({ 'src/lazy.css': ['/assets/lazy.js'] })
+
+    expect(rewriteSsrManifest(source, 'v=1')).toContain('\n  "src/lazy.css"')
   })
 })

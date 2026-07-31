@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { appendQuery, buildQuery, joinUrlSegments } from '../src/url'
+import { appendQuery, appendQueryToBuiltUrl, buildQuery, joinUrlSegments } from '../src/url'
 
 describe('appendQuery', () => {
   test('クエリが無い URL には ? で連結する', () => {
@@ -37,6 +37,50 @@ describe('appendQuery', () => {
 
   test('query が空文字なら変更しない', () => {
     expect(appendQuery('/assets/a.js', '')).toBe('/assets/a.js')
+  })
+})
+
+describe('appendQueryToBuiltUrl', () => {
+  test('http の URL にも query を付ける（CDN の base を想定）', () => {
+    expect(appendQueryToBuiltUrl('https://cdn.example.com/assets/a.js', 'v=1')).toBe(
+      'https://cdn.example.com/assets/a.js?v=1',
+    )
+  })
+
+  test('プロトコル相対 URL にも query を付ける', () => {
+    expect(appendQueryToBuiltUrl('//cdn.example.com/assets/a.js', 'v=1')).toBe(
+      '//cdn.example.com/assets/a.js?v=1',
+    )
+  })
+
+  test('data: URI は変更しない', () => {
+    expect(appendQueryToBuiltUrl('data:image/svg+xml,%3Csvg%3E', 'v=1')).toBe(
+      'data:image/svg+xml,%3Csvg%3E',
+    )
+  })
+
+  test('blob: URL は変更しない', () => {
+    expect(appendQueryToBuiltUrl('blob:http://localhost/abc', 'v=1')).toBe(
+      'blob:http://localhost/abc',
+    )
+  })
+
+  test('既にクエリがある URL には & で連結する', () => {
+    expect(appendQueryToBuiltUrl('https://cdn.example.com/a.js?x=1', 'v=1')).toBe(
+      'https://cdn.example.com/a.js?x=1&v=1',
+    )
+  })
+
+  test('ハッシュフラグメントの手前に挿入する', () => {
+    expect(appendQueryToBuiltUrl('https://cdn.example.com/a.css#top', 'v=1')).toBe(
+      'https://cdn.example.com/a.css?v=1#top',
+    )
+  })
+
+  test('query が空文字なら変更しない', () => {
+    expect(appendQueryToBuiltUrl('https://cdn.example.com/a.js', '')).toBe(
+      'https://cdn.example.com/a.js',
+    )
   })
 })
 

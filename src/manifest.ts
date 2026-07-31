@@ -26,3 +26,22 @@ export function rewriteManifest(source: string, query: string): string {
 
   return JSON.stringify(manifest, null, 2)
 }
+
+/**
+ * ssr-manifest.json の各値（URL の配列）に query を付与する。
+ * キーはモジュール ID（NUL 文字を含むこともある内部 ID）でありパスではないため書き換えない。
+ */
+export function rewriteSsrManifest(source: string, query: string): string {
+  const manifest = JSON.parse(source) as Record<string, unknown>
+
+  for (const key of Object.keys(manifest)) {
+    const value = manifest[key]
+    if (!Array.isArray(value)) continue
+
+    manifest[key] = value.map((item) =>
+      typeof item === 'string' ? appendQuery(item, query) : item,
+    )
+  }
+
+  return JSON.stringify(manifest, null, 2)
+}

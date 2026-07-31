@@ -68,6 +68,16 @@ export function filesByExtension(files: BuiltFile[], extension: string): BuiltFi
   return files.filter((file) => file.fileName.endsWith(extension))
 }
 
+/** promise が reject する前提でそのエラーメッセージを返す（reject しなければ落とす） */
+export async function rejectionMessage(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
+  throw new Error('promise が reject しませんでした')
+}
+
 export interface ManifestEntry {
   file: string
   css?: string[]
@@ -85,6 +95,19 @@ export function readManifest(files: BuiltFile[]): Record<string, ManifestEntry> 
   }
 
   return JSON.parse(manifest.content) as Record<string, ManifestEntry>
+}
+
+const SSR_MANIFEST_FILE_NAME = '.vite/ssr-manifest.json'
+
+/** 出力から ssr-manifest を読む。無ければ落とす（既定値で素通りさせない） */
+export function readSsrManifest(files: BuiltFile[]): Record<string, unknown> {
+  const manifest = files.find((file) => file.fileName === SSR_MANIFEST_FILE_NAME)
+
+  if (manifest === undefined) {
+    throw new Error('ssr-manifest.json が出力されていません')
+  }
+
+  return JSON.parse(manifest.content) as Record<string, unknown>
 }
 
 /** manifest 全エントリの imports / dynamicImports のキーを集める */
