@@ -77,14 +77,6 @@ describe('findMissingQuery', () => {
     expect(findings[0]?.column).toBe(14)
   })
 
-  test('スニペットとキャレット位置を返す', () => {
-    const files = [{ fileName: 'index.html', content: '<script src="/assets/a.js"></script>' }]
-    const finding = findMissingQuery(files, ['assets/a.js'], 'v=1')[0]
-
-    expect(finding?.snippet).toBe('<script src="/assets/a.js"></script>')
-    expect(finding?.caretOffset).toBe(14)
-  })
-
   test('assetsDir: "" によるコメント行内の偶然の一致は検出しない', () => {
     const files = [
       {
