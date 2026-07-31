@@ -471,7 +471,7 @@ export function multipleOutputsIssue(): Diagnostic {
 bun run test -- --run tests/guards.test.ts
 ```
 
-Expected: 14件すべて PASS。
+Expected: 16件すべて PASS。
 
 - [ ] **Step 5: 全体の型チェックを確認する**
 
