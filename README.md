@@ -71,6 +71,24 @@ queryCacheBusting({
 
 SSR ビルド（`vite build --ssr`）には何もしません。出力ファイル名も参照もそのままです。サーバ側のバンドルに query が付くと Node のモジュール解決が壊れるためです。
 
+## エラー表示
+
+対応していない設定やビルド後の検証結果は、[nostics](https://nostics.dev) と同じ「診断コード＋ツリー表示」で出します。
+
+```
+[QCB_RELATIVE_BASE] error  相対 base には対応していません: base: "./"
+╰▶ fix: 相対 base では Vite が JS 内の URL を実行時計算に切り替えるため、query を静的に付与できません。絶対パス（例: base: '/'）を指定してください。
+```
+
+verify の警告・エラーは、取りこぼした参照の位置を `sources` にまとめて表示します。
+
+```
+[QCB_MISSING_QUERY] warn  query 未付与の参照が 2 件あります
+├▶ fix: ソース中に文字列でハードコードされたパスの可能性があります。意図的な場合は verify: 'off' で抑制できます。
+├▶ sources: assets/index.js:1:2043
+╰▶ sources: assets/index.css:1:88
+```
+
 ## 非対応の構成
 
 以下はビルド時にエラーになります。

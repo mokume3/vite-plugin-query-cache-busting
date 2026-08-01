@@ -1,7 +1,8 @@
 import type { ResolvedConfig, Rollup } from 'vite'
 
+import { diagnostics } from './diagnostics'
 import { apiDriftIssue, manifestMissingIssue, nonEsFormatIssue } from './guards'
-import { formatFindings, formatIssue, formatSummary, type Palette } from './logger'
+import { formatDiagnostic, formatSummary, type Palette } from './logger'
 import { rewriteManifest, rewriteSsrManifest } from './manifest'
 import type { VerifyMode } from './options'
 import { rewriteImports } from './rewrite-imports'
@@ -10,8 +11,8 @@ import { findMissingQuery, isTrackedName, type OutputFile } from './verify'
 const DEFAULT_MANIFEST_FILE_NAME = '.vite/manifest.json'
 const DEFAULT_SSR_MANIFEST_FILE_NAME = '.vite/ssr-manifest.json'
 
-function throwIssue(palette: Palette, issue: Parameters<typeof formatIssue>[2]): never {
-  throw new Error(formatIssue(palette, 'error', issue))
+function throwIssue(palette: Palette, issue: Parameters<typeof formatDiagnostic>[2]): never {
+  throw new Error(formatDiagnostic(palette, 'error', issue))
 }
 
 /** config.build.manifest / config.build.ssrManifest から、書き換え対象のファイル名を決める */
@@ -64,7 +65,9 @@ export function rewriteChunkImports(
       if (result !== null) output.code = result.code
     }
   } else {
-    config.logger.warn(formatIssue(palette, 'warn', nonEsFormatIssue(String(outputOptions.format))))
+    config.logger.warn(
+      formatDiagnostic(palette, 'warn', nonEsFormatIssue(String(outputOptions.format))),
+    )
   }
 }
 
@@ -80,7 +83,7 @@ export function rewriteManifestOutput(
 
   const manifest = bundle[manifestFileName]
   if (manifest === undefined || manifest.type !== 'asset') {
-    throw new Error(formatIssue(palette, 'error', manifestMissingIssue(manifestFileName)))
+    throw new Error(formatDiagnostic(palette, 'error', manifestMissingIssue(manifestFileName)))
   }
   manifest.source = rewriteManifest(String(manifest.source), query)
 }
@@ -97,7 +100,7 @@ export function rewriteSsrManifestOutput(
 
   const ssrManifest = bundle[ssrManifestFileName]
   if (ssrManifest === undefined || ssrManifest.type !== 'asset') {
-    throw new Error(formatIssue(palette, 'error', manifestMissingIssue(ssrManifestFileName)))
+    throw new Error(formatDiagnostic(palette, 'error', manifestMissingIssue(ssrManifestFileName)))
   }
   ssrManifest.source = rewriteSsrManifest(String(ssrManifest.source), query)
 }
@@ -143,8 +146,13 @@ export function verifyOutput(
   const findings = findMissingQuery(files, referenceNames, query)
   if (findings.length === 0) return
 
+  const diagnostic = diagnostics.QCB_MISSING_QUERY({
+    count: findings.length,
+    sources: findings.map((finding) => `${finding.file}:${finding.line}:${finding.column}`),
+  })
+
   const level = verifyMode === 'error' ? 'error' : 'warn'
-  const message = formatFindings(palette, level, findings)
+  const message = formatDiagnostic(palette, level, diagnostic)
 
   if (level === 'error') throw new Error(message)
   config.logger.warn(message)

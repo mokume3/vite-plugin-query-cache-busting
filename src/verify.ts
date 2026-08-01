@@ -8,15 +8,12 @@ export interface Finding {
   line: number
   column: number
   reference: string
-  snippet: string
-  caretOffset: number
 }
 
 const SCANNED_EXTENSIONS = ['.js', '.mjs', '.cjs', '.css', '.html']
 const NAME_CHAR_RE = /[A-Za-z0-9_.-]/
 const PATH_CHAR_RE = /[A-Za-z0-9_.:/-]/
 const URL_DELIMITER_RE = /["'`(=]/
-const SNIPPET_CONTEXT = 30
 
 /** 中身を走査する対象のファイルか */
 export function isScannableFile(fileName: string): boolean {
@@ -99,21 +96,5 @@ function createFinding(
   const lineStart = before.lastIndexOf('\n') + 1
   const column = index - lineStart + 1
 
-  const rawLineEnd = content.indexOf('\n', index)
-  const lineEnd = rawLineEnd === -1 ? content.length : rawLineEnd
-
-  const contextStart = Math.max(lineStart, index - SNIPPET_CONTEXT)
-  const contextEnd = Math.min(lineEnd, index + reference.length + SNIPPET_CONTEXT)
-
-  const prefix = contextStart > lineStart ? '...' : ''
-  const suffix = contextEnd < lineEnd ? '...' : ''
-
-  return {
-    file: fileName,
-    line,
-    column,
-    reference,
-    snippet: `${prefix}${content.slice(contextStart, contextEnd)}${suffix}`,
-    caretOffset: prefix.length + (index - contextStart),
-  }
+  return { file: fileName, line, column, reference }
 }

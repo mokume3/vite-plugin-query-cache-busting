@@ -1,7 +1,8 @@
 import { Ansis } from 'ansis'
+import { Diagnostic } from 'nostics'
 import { describe, expect, test } from 'vitest'
 
-import { createPalette, formatFindings, formatIssue, formatSummary } from '../src/logger'
+import { createPalette, formatDiagnostic, formatSummary } from '../src/logger'
 
 // 色レベルを 0 に固定して、色コードではなくメッセージの中身を検証する
 const plain = createPalette(new Ansis(0))
@@ -24,59 +25,46 @@ describe('formatSummary', () => {
   })
 })
 
-describe('formatIssue', () => {
-  test('タイトル・詳細・ヒントを整形する', () => {
-    const message = formatIssue(plain, 'error', {
-      title: '相対 base には対応していません',
-      details: ["base: './'"],
-      hints: ['絶対パスを指定してください。'],
+describe('formatDiagnostic', () => {
+  test('fix があれば1行のツリーで表示する', () => {
+    const diagnostic = new Diagnostic({
+      code: 'QCB_RELATIVE_BASE',
+      why: '相対 base には対応していません: base: "./"',
+      fix: '絶対パスを指定してください。',
     })
+
+    const message = formatDiagnostic(plain, 'error', diagnostic)
 
     expect(message).toBe(
       [
-        '[query-cache-busting] error  相対 base には対応していません',
-        '',
-        "  base: './'",
-        '',
-        '  絶対パスを指定してください。',
+        '[QCB_RELATIVE_BASE] error  相対 base には対応していません: base: "./"',
+        '╰▶ fix: 絶対パスを指定してください。',
       ].join('\n'),
     )
   })
 
-  test('詳細が空なら詳細ブロックを出さない', () => {
-    const message = formatIssue(plain, 'warn', {
-      title: 'タイトル',
-      details: [],
-      hints: ['ヒント'],
+  test('fix も sources も無ければ見出しだけを返す', () => {
+    const diagnostic = new Diagnostic({ code: 'QCB_TEST', why: 'タイトル' })
+
+    expect(formatDiagnostic(plain, 'warn', diagnostic)).toBe('[QCB_TEST] warn  タイトル')
+  })
+
+  test('fix と複数の sources をツリーで表示する', () => {
+    const diagnostic = new Diagnostic({
+      code: 'QCB_MISSING_QUERY',
+      why: 'query 未付与の参照が 2 件あります',
+      fix: "ソース中に文字列でハードコードされたパスの可能性があります。意図的な場合は verify: 'off' で抑制できます。",
+      sources: ['assets/index.js:1:2043', 'assets/manifest.json:1:88'],
     })
 
-    expect(message).toBe(['[query-cache-busting] warn  タイトル', '', '  ヒント'].join('\n'))
-  })
-})
-
-describe('formatFindings', () => {
-  test('位置・スニペット・キャレットを整形する', () => {
-    const message = formatFindings(plain, 'warn', [
-      {
-        file: 'assets/index.js',
-        line: 1,
-        column: 15,
-        reference: 'assets/a.js',
-        snippet: '<script src="/assets/a.js">',
-        caretOffset: 14,
-      },
-    ])
+    const message = formatDiagnostic(plain, 'warn', diagnostic)
 
     expect(message).toBe(
       [
-        '[query-cache-busting] warn  query が付いていない参照が 1 件あります',
-        '',
-        '  assets/index.js:1:15',
-        '    <script src="/assets/a.js">',
-        '                  ^^^^^^^^^^^',
-        '',
-        '  ソース中に文字列でハードコードされたパスの可能性があります。',
-        "  意図的な場合は verify: 'off' で抑制できます。",
+        '[QCB_MISSING_QUERY] warn  query 未付与の参照が 2 件あります',
+        "├▶ fix: ソース中に文字列でハードコードされたパスの可能性があります。意図的な場合は verify: 'off' で抑制できます。",
+        '├▶ sources: assets/index.js:1:2043',
+        '╰▶ sources: assets/manifest.json:1:88',
       ].join('\n'),
     )
   })
@@ -86,7 +74,7 @@ describe('createPalette', () => {
   test('色レベル 1 なら ANSI コードが付く', () => {
     const colored = createPalette(new Ansis(1))
 
-    expect(colored.bad('x')).not.toBe('x')
-    expect(colored.bad('x')).toContain('x')
+    expect(colored.path('x')).not.toBe('x')
+    expect(colored.path('x')).toContain('x')
   })
 })

@@ -34,8 +34,8 @@ describe('collectConfigIssues', () => {
     const { errors } = collectConfigIssues({ ...supported, base: './' })
 
     expect(errors).toHaveLength(1)
-    expect(errors[0]?.title).toMatch(/相対 base/)
-    expect(errors[0]?.details.join('')).toMatch(/\.\//)
+    expect(errors[0]?.message).toMatch(/相対 base/)
+    expect(errors[0]?.message).toMatch(/\.\//)
   })
 
   test('base が空文字ならエラー', () => {
@@ -50,21 +50,21 @@ describe('collectConfigIssues', () => {
     const { errors } = collectConfigIssues({ ...supported, isLib: true })
 
     expect(errors).toHaveLength(1)
-    expect(errors[0]?.title).toMatch(/build\.lib/)
+    expect(errors[0]?.message).toMatch(/build\.lib/)
   })
 
   test('chunkImportMap が有効ならエラー', () => {
     const { errors } = collectConfigIssues({ ...supported, chunkImportMap: true })
 
     expect(errors).toHaveLength(1)
-    expect(errors[0]?.title).toMatch(/chunkImportMap/)
+    expect(errors[0]?.message).toMatch(/chunkImportMap/)
   })
 
   test('Vite 7 以下ならエラー', () => {
     const { errors } = collectConfigIssues({ ...supported, viteMajor: 7 })
 
     expect(errors).toHaveLength(1)
-    expect(errors[0]?.title).toMatch(/Vite 8/)
+    expect(errors[0]?.message).toMatch(/Vite 8/)
   })
 
   test('Vite 9 以上なら警告', () => {
@@ -72,7 +72,7 @@ describe('collectConfigIssues', () => {
 
     expect(errors).toEqual([])
     expect(warnings).toHaveLength(1)
-    expect(warnings[0]?.title).toMatch(/未検証/)
+    expect(warnings[0]?.message).toMatch(/未検証/)
   })
 
   test('複数の非対応構成をまとめて返す', () => {
@@ -82,8 +82,8 @@ describe('collectConfigIssues', () => {
   })
 })
 
-describe('個別の Issue', () => {
-  test('どの Issue も title と hints を持つ', () => {
+describe('個別の Diagnostic', () => {
+  test('どの Diagnostic も message と fix を持つ', () => {
     const issues = [
       hijackedRenderBuiltUrlIssue(),
       userHookReturnedObjectIssue(),
@@ -96,34 +96,33 @@ describe('個別の Issue', () => {
     ]
 
     for (const issue of issues) {
-      expect(issue.title.length).toBeGreaterThan(0)
-      expect(issue.hints.length).toBeGreaterThan(0)
+      expect(issue.message.length).toBeGreaterThan(0)
+      expect(issue.fix).toBeDefined()
+      expect(issue.fix).not.toBe('')
     }
   })
 
   test('nonEsFormatIssue は形式名を含む', () => {
-    expect(nonEsFormatIssue('system').details.join('')).toMatch(/system/)
+    expect(nonEsFormatIssue('system').message).toMatch(/system/)
   })
 
   test('manifestMissingIssue はファイル名を含む', () => {
-    expect(manifestMissingIssue('.vite/manifest.json').details.join('')).toMatch(/manifest\.json/)
+    expect(manifestMissingIssue('.vite/manifest.json').message).toMatch(/manifest\.json/)
   })
 
-  test('hashedFileNamePatternIssue は渡した文字列をそのまま details に並べる（前置しない）', () => {
+  test('hashedFileNamePatternIssue は渡した文字列をそのまま message に含める（前置しない）', () => {
     const issue = hashedFileNamePatternIssue([
       'build.rollupOptions.output.entryFileNames',
       'worker.rolldownOptions.output.chunkFileNames',
     ])
 
-    expect(issue.details).toEqual([
-      'build.rollupOptions.output.entryFileNames',
-      'worker.rolldownOptions.output.chunkFileNames',
-    ])
+    expect(issue.message).toContain('build.rollupOptions.output.entryFileNames')
+    expect(issue.message).toContain('worker.rolldownOptions.output.chunkFileNames')
   })
 
-  test('unverifiableFileNamePatternIssue は渡した文字列をそのまま details に並べる（前置しない）', () => {
+  test('unverifiableFileNamePatternIssue は渡した文字列をそのまま message に含める（前置しない）', () => {
     expect(
-      unverifiableFileNamePatternIssue(['worker.rollupOptions.output.assetFileNames']).details,
-    ).toEqual(['worker.rollupOptions.output.assetFileNames'])
+      unverifiableFileNamePatternIssue(['worker.rollupOptions.output.assetFileNames']).message,
+    ).toContain('worker.rollupOptions.output.assetFileNames')
   })
 })

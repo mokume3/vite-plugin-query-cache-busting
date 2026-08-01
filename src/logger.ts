@@ -1,8 +1,7 @@
 import { Ansis } from 'ansis'
+import type { Diagnostic } from 'nostics'
 
 import { LOG_PREFIX } from './constants'
-import type { Issue } from './guards'
-import type { Finding } from './verify'
 
 export type IssueLevel = 'warn' | 'error'
 
@@ -11,7 +10,6 @@ export interface Palette {
   label: (level: IssueLevel, text: string) => string
   path: (text: string) => string
   query: (text: string) => string
-  bad: (text: string) => string
   count: (text: string) => string
   hint: (text: string) => string
 }
@@ -26,7 +24,6 @@ export function createPalette(ansis: Ansis = new Ansis()): Palette {
     label: (level, text) => (level === 'error' ? ansis.red.bold(text) : ansis.yellow.bold(text)),
     path: (text) => ansis.cyan(text),
     query: (text) => ansis.green(text),
-    bad: (text) => ansis.red.underline(text),
     count: (text) => ansis.bold(text),
     hint: (text) => ansis.dim(text),
   }
@@ -48,41 +45,30 @@ export function formatSummary(
   return breakdown === '' ? head : `${head} (${breakdown})`
 }
 
-export function formatIssue(palette: Palette, level: IssueLevel, issue: Issue): string {
-  const lines = [`${palette.prefix(LOG_PREFIX)} ${palette.label(level, level)}  ${issue.title}`]
+/**
+ * 診断を [CODE] level  message の見出し + fix/sources のツリー表示に整形する。
+ * nostics の formatDiagnostic/ansiFormatter と同じレイアウト（├▶/╰▶ 接続）を踏襲するが、
+ * severity（error/warn）の文字表記と色分けを自前で加えている。
+ */
+export function formatDiagnostic(
+  palette: Palette,
+  level: IssueLevel,
+  diagnostic: Diagnostic,
+): string {
+  const header = `${palette.path(`[${diagnostic.name}]`)} ${palette.label(level, level)}  ${diagnostic.message}`
 
-  if (issue.details.length > 0) {
-    lines.push('')
-    for (const detail of issue.details) lines.push(`  ${detail}`)
+  const details: string[] = []
+  if (diagnostic.fix !== undefined) details.push(`${palette.hint('fix:')} ${diagnostic.fix}`)
+  if (diagnostic.sources !== undefined) {
+    for (const source of diagnostic.sources) details.push(`${palette.hint('sources:')} ${source}`)
   }
 
-  if (issue.hints.length > 0) {
-    lines.push('')
-    for (const hint of issue.hints) lines.push(`  ${palette.hint(hint)}`)
-  }
+  if (details.length === 0) return header
 
-  return lines.join('\n')
-}
-
-export function formatFindings(palette: Palette, level: IssueLevel, findings: Finding[]): string {
-  const lines = [
-    `${palette.prefix(LOG_PREFIX)} ${palette.label(level, level)}  query が付いていない参照が ${palette.count(String(findings.length))} 件あります`,
-    '',
-  ]
-
-  for (const finding of findings) {
-    lines.push(
-      `  ${palette.path(`${finding.file}:${finding.line}:${finding.column}`)}`,
-      `    ${finding.snippet}`,
-      `    ${' '.repeat(finding.caretOffset)}${palette.bad('^'.repeat(finding.reference.length))}`,
-      '',
-    )
-  }
-
-  lines.push(
-    `  ${palette.hint('ソース中に文字列でハードコードされたパスの可能性があります。')}`,
-    `  ${palette.hint("意図的な場合は verify: 'off' で抑制できます。")}`,
-  )
-
-  return lines.join('\n')
+  return [
+    header,
+    ...details.map(
+      (detail, index) => `${palette.hint(index < details.length - 1 ? '├▶' : '╰▶')} ${detail}`,
+    ),
+  ].join('\n')
 }
