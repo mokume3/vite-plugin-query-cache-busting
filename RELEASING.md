@@ -29,14 +29,18 @@ npm の Trusted Publisher（GitHub Actions を信頼済みの発行元として�
    npm publish --access public
    ```
 
-4. [npmjs.com](https://www.npmjs.com/) にログインし、このパッケージの設定ページから GitHub Actions を信頼済みの発行元として登録します（メニューの正確な名称は npm 側の UI 変更で変わることがあるので、実際の画面を確認してください。「Trusted Publisher」「Publishing access」に類する項目を探します）。登録する内容:
+4. [npmjs.com](https://www.npmjs.com/) にログインし、このパッケージの設定ページの「Trusted Publisher」セクションから登録します。登録する内容:
 
-   | 項目              | 値                                |
-   | ----------------- | --------------------------------- |
-   | Organization/User | `mokume3`                         |
-   | Repository        | `vite-plugin-query-cache-busting` |
-   | Workflow file     | `.github/workflows/publish.yml`   |
-   | Environment       | （設定しない）                    |
+   | 項目                 | 値                                                                 |
+   | -------------------- | ------------------------------------------------------------------ |
+   | Publisher            | `GitHub Actions`                                                   |
+   | Organization or user | `mokume3`                                                          |
+   | Repository           | `vite-plugin-query-cache-busting`                                  |
+   | Workflow filename    | `publish.yml`                                                      |
+   | Environment name     | （空欄のまま）                                                     |
+   | Allowed actions      | `Allow npm publish` にチェック（`Allow npm stage publish` は不要） |
+
+   「Allowed actions」は最低1つのチェックが必須です。`npm stage publish` はステージング公開後に人間が2FAで承認・昇格するフローで、`publish.yml` はステージングを経由せず直接 `npm publish` を実行する設計なので、`Allow npm publish` のみにチェックしてください。
 
 5. これ以降のリリースはすべて `publish.yml` 経由で行われます。`npm publish` にトークンは不要です（`id-token: write` 権限だけで通ります）。
 
