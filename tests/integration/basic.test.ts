@@ -49,6 +49,20 @@ describe('basic fixture', () => {
     expect(js).toMatch(/import\(["']\.\/[\w.-]+\.js\?v=testver["']\)/)
   })
 
+  test('minify 有効時もチャンク間の動的 import に query が付く（esbuild が引数を TemplateLiteral にすることがある）', async () => {
+    const files = await buildFixture(
+      basicRoot,
+      { version: 'testver' },
+      { build: { minify: true } },
+    )
+    const js = filesByExtension(files, '.js')
+      .map((file) => file.content)
+      .join('\n')
+
+    expect(js).toMatch(/import\(["'`]\.\/[\w.-]+\.js\?v=testver["'`]\)/)
+    expectAllReferencesBusted(files, query)
+  })
+
   test('__vitePreload の依存配列に query が付く', async () => {
     const files = await buildFixture(basicRoot, { version: 'testver' })
     const js = filesByExtension(files, '.js')

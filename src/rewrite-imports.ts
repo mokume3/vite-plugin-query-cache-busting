@@ -15,6 +15,12 @@ interface StringLiteralNode extends AstNode {
   value: string
 }
 
+interface StaticTemplateLiteralNode extends AstNode {
+  type: 'TemplateLiteral'
+  expressions: unknown[]
+  quasis: { value: { cooked: string | null } }[]
+}
+
 export interface RewriteResult {
   code: string
   map: ReturnType<MagicString['generateMap']>
@@ -33,6 +39,8 @@ const SKIPPED_KEYS = new Set(['type', 'start', 'end', 'loc', 'range', 'parent'])
 /**
  * チャンク間の import 指定子に query を付与する。
  * 書き換え対象は import / export の source と import() の引数リテラルのみ。
+ * 引数は文字列リテラルと、式展開のない TemplateLiteral（例: `./dep.js`）の両方を扱う。
+ * esbuild の minify が import() の引数を後者の形に変換することがあるため。
  */
 export function rewriteImports(
   code: string,
@@ -47,11 +55,14 @@ export function rewriteImports(
     if (!SOURCE_BEARING_TYPES.has(node.type)) return
 
     const source = node.source
-    if (!isStringLiteral(source)) return
-    if (!isRewritableSpecifier(source.value)) return
+    if (!isStaticSpecifierNode(source)) return
 
-    const rewritten = appendQuery(source.value, query)
-    if (rewritten === source.value) return
+    const value = getStaticSpecifierValue(source)
+    if (value === null) return
+    if (!isRewritableSpecifier(value)) return
+
+    const rewritten = appendQuery(value, query)
+    if (rewritten === value) return
 
     magicString.update(source.start, source.end, JSON.stringify(rewritten))
     count += 1
@@ -89,6 +100,35 @@ function isStringLiteral(node: unknown): node is StringLiteralNode {
 
   const record = node as Record<string, unknown>
   return record.type === 'Literal' && typeof record.value === 'string'
+}
+
+/** 式展開のない TemplateLiteral か（minify 後の import() 引数はこの形になる） */
+function isStaticTemplateLiteral(node: unknown): node is StaticTemplateLiteralNode {
+  if (node === null || typeof node !== 'object') return false
+
+  const record = node as Record<string, unknown>
+  if (record.type !== 'TemplateLiteral') return false
+
+  const expressions = record.expressions
+  const quasis = record.quasis
+  return Array.isArray(expressions) && expressions.length === 0 && Array.isArray(quasis)
+}
+
+/** import 指定子として静的に扱えるノードか（文字列リテラル or 式展開のない TemplateLiteral） */
+function isStaticSpecifierNode(
+  node: unknown,
+): node is StringLiteralNode | StaticTemplateLiteralNode {
+  return isStringLiteral(node) || isStaticTemplateLiteral(node)
+}
+
+/**
+ * import 指定子ノードから静的な文字列値を取り出す。
+ * 式展開のない TemplateLiteral は、esbuild の minify が import() の引数を
+ * この形にすることがあるため文字列リテラルと同様に扱う。
+ */
+function getStaticSpecifierValue(node: StringLiteralNode | StaticTemplateLiteralNode): string | null {
+  if (node.type === 'Literal') return node.value
+  return node.quasis[0]?.value.cooked ?? null
 }
 
 /** チャンクへの参照とみなせる指定子か（ベア指定子と外部 URL を除く） */

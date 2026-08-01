@@ -59,6 +59,14 @@ describe('rewriteImports', () => {
     expect(rewrite('const p = import(name)')).toBeNull()
   })
 
+  test('式展開のない TemplateLiteral の動的 import を書き換える（esbuild minify 後の形）', () => {
+    expect(rewrite('const p = import(`./dep.js`)')).toBe('const p = import("./dep.js?v=1")')
+  })
+
+  test('式展開のある TemplateLiteral の動的 import は書き換えない', () => {
+    expect(rewrite('const p = import(`./${name}.js`)')).toBeNull()
+  })
+
   test('source を持たない export は書き換えない', () => {
     expect(rewrite('const c = 1\nexport { c }')).toBeNull()
   })
