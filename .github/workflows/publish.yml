@@ -3,12 +3,7 @@ name: Publish
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        type: boolean
-        default: true
-        description: 'true の場合 npm publish と GitHub Release 作成をスキップする'
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -51,8 +46,6 @@ jobs:
         id: mode
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ inputs.dry_run }}" = "false" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
