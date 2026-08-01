@@ -126,7 +126,9 @@ function isStaticSpecifierNode(
  * 式展開のない TemplateLiteral は、esbuild の minify が import() の引数を
  * この形にすることがあるため文字列リテラルと同様に扱う。
  */
-function getStaticSpecifierValue(node: StringLiteralNode | StaticTemplateLiteralNode): string | null {
+function getStaticSpecifierValue(
+  node: StringLiteralNode | StaticTemplateLiteralNode,
+): string | null {
   if (node.type === 'Literal') return node.value
   return node.quasis[0]?.value.cooked ?? null
 }

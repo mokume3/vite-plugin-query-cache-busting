@@ -50,11 +50,7 @@ describe('basic fixture', () => {
   })
 
   test('minify 有効時もチャンク間の動的 import に query が付く（esbuild が引数を TemplateLiteral にすることがある）', async () => {
-    const files = await buildFixture(
-      basicRoot,
-      { version: 'testver' },
-      { build: { minify: true } },
-    )
+    const files = await buildFixture(basicRoot, { version: 'testver' }, { build: { minify: true } })
     const js = filesByExtension(files, '.js')
       .map((file) => file.content)
       .join('\n')
