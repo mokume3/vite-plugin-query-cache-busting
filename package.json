@@ -23,6 +23,7 @@
     "dist"
   ],
   "type": "module",
+  "types": "./dist/index.d.mts",
   "exports": {
     ".": "./dist/index.mjs",
     "./package.json": "./package.json"
@@ -46,10 +47,12 @@
     "nostics": "^1.2.0"
   },
   "devDependencies": {
+    "@arethetypeswrong/core": "^0.18.5",
     "@types/node": "^26.1.1",
     "bumpp": "^11.1.0",
     "oxfmt": "^0.61.0",
     "oxlint": "^1.76.0",
+    "publint": "^0.3.22",
     "tsdown": "^0.22.5",
     "typescript": "^7.0.2",
     "vite": "^8.2.0",
