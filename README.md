@@ -1,10 +1,14 @@
 # vite-plugin-query-cache-busting
 
-Vite のキャッシュバスティングを、ファイル名ハッシュ（`assets/index-a1b2c3d4.js`）ではなく
-クエリパラメータ（`assets/index.js?v=202607302209`）で行う Vite プラグインです。
+English | [日本語](./README.ja.md)
 
-ファイル名を固定したまま配信する必要がある環境（サーバ・CDN・既存テンプレートがパスを
-参照している構成）や、同一パスへ上書きデプロイする運用を想定しています。
+A Vite plugin that busts caches with a **query parameter**
+(`assets/index.js?v=202607302209`) instead of a filename hash
+(`assets/index-a1b2c3d4.js`).
+
+Intended for environments that must serve fixed filenames (a server, a CDN,
+or an existing template referencing paths) and for deployments that
+overwrite the same paths on every release.
 
 ## Requirements
 
@@ -29,22 +33,22 @@ export default defineConfig({
 })
 ```
 
-出力は次のようになります。ファイル名からハッシュが消え、代わりにクエリが付きます。
+Output looks like this. Filenames lose their hash and gain a query instead.
 
 ```html
 <script type="module" src="/assets/index.js?v=202607302209"></script>
 <link rel="stylesheet" href="/assets/index.css?v=202607302209" />
 ```
 
-プラグインは `entryFileNames` / `chunkFileNames` / `assetFileNames` を `[hash]` 無しのパターンに設定します（`build.assetsDir` は尊重します）。これらを `vite.config.ts` で明示指定している場合はその指定が優先されますが、パターンに `[hash]` が含まれているとビルドが失敗します。ファイル名ハッシュとクエリの二重掛けになり、このプラグインを使う意味がなくなるためです。
+The plugin sets `entryFileNames` / `chunkFileNames` / `assetFileNames` to hash-free patterns (`build.assetsDir` is respected). If you set these explicitly in `vite.config.ts`, your patterns take precedence — but the build fails if any pattern still contains `[hash]`, since that would double up filename hashing and querystring busting, defeating the point of this plugin.
 
 ## Options
 
-| オプション | 型                                                                      | デフォルト                    | 説明                                                                        |
-| ---------- | ----------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------- |
-| `version`  | `string \| (() => string \| undefined \| Promise<string \| undefined>)` | ローカル時刻の `YYYYMMDDHHmm` | query に載せる値。関数が `undefined` か空文字を返した場合はデフォルトに戻る |
-| `key`      | `string \| false`                                                       | `'v'`                         | query のキー。`false` で `?202607302209` の裸クエリ                         |
-| `verify`   | `'warn' \| 'error' \| 'off'`                                            | `'warn'`                      | 出力に query 未付与の参照が残っていないかの自己検証                         |
+| Option    | Type                                                                    | Default                      | Description                                                                                                   |
+| --------- | ----------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `version` | `string \| (() => string \| undefined \| Promise<string \| undefined>)` | Local time as `YYYYMMDDHHmm` | The value placed in the query. Falls back to the default if a function returns `undefined` or an empty string |
+| `key`     | `string \| false`                                                       | `'v'`                        | The query key. `false` produces a bare query (`?202607302209`) with no key                                    |
+| `verify`  | `'warn' \| 'error' \| 'off'`                                            | `'warn'`                     | Self-check for references in the output that are missing the query                                            |
 
 ```ts
 queryCacheBusting({
@@ -54,33 +58,31 @@ queryCacheBusting({
 })
 ```
 
-`version` は**ビルド開始時に1回だけ**解決され、そのビルドの全ファイルに同じ値が付きます。
-ファイル単位のコンテンツハッシュではないため、デプロイのたびに全ファイルのキャッシュが
-無効化されます。
+`version` is resolved **once, at the start of the build**, and the same value is applied to every file in that build. It is not a per-file content hash, so every file's cache is invalidated on each deploy.
 
-## 対象になる参照
+## What gets a query
 
-- 出力ファイル名からのハッシュ除去（`entryFileNames` / `chunkFileNames` / `assetFileNames`）
-- HTML の `<script src>` / `<link rel="stylesheet">` / `<link rel="modulepreload">`
-- CSS の `url()`
-- JS 内のアセット URL（`import img from './x.png'`、`new URL('./x.png', import.meta.url)`）
-- `__vitePreload` の依存配列
-- チャンク間の import 指定子
-- `.vite/manifest.json` の `file` / `css` / `assets`
-- `.vite/ssr-manifest.json` の各値（`build.ssrManifest` 有効時）
+- Hash removal from output filenames (`entryFileNames` / `chunkFileNames` / `assetFileNames`)
+- HTML `<script src>` / `<link rel="stylesheet">` / `<link rel="modulepreload">`
+- CSS `url()`
+- Asset URLs in JS (`import img from './x.png'`, `new URL('./x.png', import.meta.url)`)
+- The `__vitePreload` dependency array
+- Chunk-to-chunk import specifiers
+- `file` / `css` / `assets` in `.vite/manifest.json`
+- Each value in `.vite/ssr-manifest.json` (when `build.ssrManifest` is enabled)
 
-SSR ビルド（`vite build --ssr`）には何もしません。出力ファイル名も参照もそのままです。サーバ側のバンドルに query が付くと Node のモジュール解決が壊れるためです。
+The plugin does nothing for SSR builds (`vite build --ssr`) — output filenames and references are left untouched, since adding a query to a server bundle would break Node's module resolution.
 
-## エラー表示
+## Error output
 
-対応していない設定やビルド後の検証結果は、[nostics](https://nostics.dev) と同じ「診断コード＋ツリー表示」で出します。
+Unsupported configurations and post-build verification are reported in the same "diagnostic code + tree" style as [nostics](https://nostics.dev).
 
 ```
 [QCB_RELATIVE_BASE] error  相対 base には対応していません: base: "./"
 ╰▶ fix: 相対 base では Vite が JS 内の URL を実行時計算に切り替えるため、query を静的に付与できません。絶対パス（例: base: '/'）を指定してください。
 ```
 
-verify の警告・エラーは、取りこぼした参照の位置を `sources` にまとめて表示します。
+Verify warnings/errors collect every un-busted reference's location into `sources`.
 
 ```
 [QCB_MISSING_QUERY] warn  query 未付与の参照が 2 件あります
@@ -89,29 +91,26 @@ verify の警告・エラーは、取りこぼした参照の位置を `sources`
 ╰▶ sources: assets/index.css:1:88
 ```
 
-## 非対応の構成
+## Unsupported configurations
 
-以下はビルド時にエラーになります。
+The following fail at build time:
 
-- 相対 base（`base: ''` / `'./'`）— Vite が JS 内の URL を実行時計算に切り替えるため
-- ライブラリモード（`build.lib`）— 利用側のモジュール解決が壊れるため
-- `build.chunkImportMap` — Vite 自身が `experimental.renderBuiltUrl` との併用を非対応としているため
-- 他のプラグインによる `experimental.renderBuiltUrl` の上書き
-- 明示指定した出力ファイル名パターンに `[hash]` が含まれる場合
-- `build.rollupOptions.output` が配列（複数出力）の場合
+- A relative `base` (`base: ''` / `'./'`) — Vite switches to computing JS-side URLs at runtime
+- Library mode (`build.lib`) — it would break the consumer's module resolution
+- `build.chunkImportMap` — Vite itself does not support combining this with `experimental.renderBuiltUrl`
+- `experimental.renderBuiltUrl` being overridden by another plugin
+- An explicitly configured output filename pattern that still contains `[hash]`
+- `build.rollupOptions.output` being an array (multiple outputs)
 
-## 既知の制限
+## Known limitations
 
-- `public/` は Vite が参照を追跡できる箇所（処理対象の HTML、`import` されたもの）にのみ
-  query が付きます。ソース中に文字列でハードコードされたパスには付きません
-- `base` に percent-encode を含む構成は非対応です
-- `@vitejs/plugin-legacy` の SystemJS 出力ではチャンク間 import を書き換えられません（警告が出ます）
-- 出力ファイル名パターンを関数で指定している場合、`[hash]` を含むかを静的に検証できません（警告が出ます）
-- `build.sourcemap` を有効にしている場合、チャンク間 import を含む行のマッピングが query の長さ分ずれます。書き換えを `generateBundle` で行うため sourcemap の自動連結が使えないためです。import 指定子をデバッグする場面はほぼ無いことから、合成せず制限としています
-- ファイル名にハッシュが無いため、同じ `[name]` を持つチャンクが複数あると名前が衝突します。Rolldown が連番を付けて回避しますが、その連番はビルドごとに安定するとは限りません
-- 同一パスへ上書きデプロイするため、古い HTML を保持しているクライアントは
-  `?v=<旧version>` を要求しても新しい中身のファイルを受け取ります。これはクエリ方式に
-  内在する性質で、このプラグインでは解決できません
+- `public/` files only get a query where Vite can trace the reference (processed HTML, or an `import`). A path hardcoded as a string in source code does not get one
+- A `base` containing percent-encoding is not supported
+- `@vitejs/plugin-legacy`'s SystemJS output can't have its chunk-to-chunk imports rewritten (a warning is emitted)
+- When the output filename pattern is a function, the plugin cannot statically verify whether it produces a `[hash]`-containing name (a warning is emitted)
+- With `build.sourcemap` enabled, the mapping for lines containing chunk-to-chunk imports shifts by the length of the added query. The rewrite happens in `generateBundle`, so `renderChunk`'s automatic sourcemap chaining isn't available; since debugging an import specifier itself is a rare scenario, this is documented as a limitation rather than solved
+- Since filenames carry no hash, multiple chunks sharing the same `[name]` collide. Rolldown appends a numeric suffix to avoid this, but that suffix is not guaranteed to be stable across builds
+- Because deploys overwrite the same paths, a client holding an old HTML page that requests `?v=<old-version>` still receives the new file contents. This is inherent to the query-based approach and cannot be resolved by this plugin
 
 ## License
 
