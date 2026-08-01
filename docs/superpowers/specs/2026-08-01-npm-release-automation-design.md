@@ -82,12 +82,7 @@ name: Publish
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        type: boolean
-        default: true
-        description: 'true の場合 npm publish と GitHub Release 作成をスキップする'
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -131,8 +126,6 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ inputs.dry_run }}" = "false" ]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
@@ -148,7 +141,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 ```
 
-`workflow_dispatch` は任意のブランチから手動実行できる。`dry_run`（デフォルト `true`）にしておけば、チェックアウト〜バージョン検証までを npm への実際の公開無しに検証できる。`push` イベント（実際のタグ push）の場合は常に本番公開として扱う。
+`workflow_dispatch` は任意のブランチから手動実行でき、**常に dry-run 専用**として扱う（入力は無し、公開系の2ステップは常にスキップする）。実際の公開は `push` イベント（v* タグの push）のときだけ行う。
+
+この判定を「`dry_run` という入力で分岐する」形にはしていない。当初はそう設計していたが、`workflow_dispatch` に `dry_run: false` を渡すと実公開に進める余地があり、その経路では「バージョン一致検証」ステップ（`if: github.event_name == 'push'`）が素通りされてしまう欠陥があった。手動公開という経路自体を無くし、**実公開は `push` イベントの1本だけ**にすることでこの種の欠陥を構造的に無くしている。`workflow_dispatch` はビルド・テスト・バージョン検証（`push` の場合のみ）までを安全に試す手段としてのみ存在する。
 
 **技術上の理由で `npm publish` は `bun publish` ではなく `npm` CLI で行う。** npm の Trusted Publishing（OIDC）は npm CLI の対応済みバージョンに依存する挙動であり、`bun publish` が同じ OIDC フローに対応しているという確証がない。ビルド・テストは引き続き bun で行い、公開ステップのためだけに `actions/setup-node` で Node.js と npm CLI を用意する。
 
@@ -182,7 +177,7 @@ npm の Trusted Publisher 設定は、パッケージが npm レジストリに�
    - コミット・タグ作成・push の確認プロンプトにすべて `y` で応答
    - GitHub の Actions タブで `publish.yml` の実行結果を確認する
    - npm と GitHub Releases に反映されたことを確認する
-4. **`workflow_dispatch` による dry-run の使い方** — Actions タブから手動実行し、`dry_run` を `true`（デフォルト）のままにする
+4. **`workflow_dispatch` による dry-run の使い方** — Actions タブから手動実行するだけでよい（入力は無く、常に dry-run 扱いになる）
 5. **トラブルシューティング**（6章参照）
 
 ## 6. エラー処理
@@ -195,7 +190,7 @@ npm の Trusted Publisher 設定は、パッケージが npm レジストリに�
 ## 7. テスト方針
 
 - `ci.yml` は feature ブランチへの push・PR で素直に検証できる
-- `publish.yml` は `workflow_dispatch`（任意のブランチから手動実行可）＋ `dry_run: true` で、チェックアウト・ビルド・テスト・バージョン検証までを npm への実際の公開無しに検証する
+- `publish.yml` は `workflow_dispatch`（任意のブランチから手動実行可、常に dry-run 扱い）で、チェックアウト・ビルド・テストまでを npm への実際の公開無しに検証する
 - **正直な限界として、`npm publish`/`gh release create` 自体の実地検証は、4章の初回セットアップ（実際の初回リリース）と実質的に一致する。** 使い捨ての検証用パッケージを npm に作るような追加の仕組みは、この規模のプロジェクトには見合わないため提案しない
 
 ## 8. スコープ境界（今回やらないこと）
@@ -211,3 +206,21 @@ npm の Trusted Publisher 設定は、パッケージが npm レジストリに�
 **コミットメッセージ規約からの完全自動バージョン判定**: 最も自動化されるが、規約の徹底が必要で意図しないバージョンが上がるリスクがある。ユーザーの選択（質問1の回答A）により却下
 
 **`NPM_TOKEN`（Automation トークン）による認証**: 設定は単純だが、長期トークンの管理・ローテーションが必要。ユーザーの選択（質問2の回答A）により却下。ただし本設計は初回公開だけ手動 `npm publish`（ローカルの npm login）を要求しており、この時点では長期トークンを一切発行しない
+
+## 10. 実装レビューで発見した欠陥の修正（2026-08-01 追記）
+
+Task 2 のレビューで、`workflow_dispatch` に `dry_run: false` を渡すと実際に `npm publish` へ進めてしまい、かつ「バージョン一致検証」ステップ（`if: github.event_name == 'push'`）を素通りするという欠陥が見つかった。これは実装のミスではなく、当初の spec/plan の設計そのものの欠陥だった。
+
+さらに、その経路で `gh release create "$GITHUB_REF_NAME"` を実行すると、`GITHUB_REF_NAME` はタグ名ではなく手動実行時に選んだブランチ名（例: `main`）になるため、バージョンタグではない名前でリリースを作ろうとする不具合も伴っていた。
+
+**修正**: `workflow_dispatch` から実公開へ進む経路を完全に無くした。`dry_run` という入力自体を削除し、`workflow_dispatch` は常にビルド・テストまでを検証するだけの dry-run 専用トリガーとした。実際の公開は `push`（v* タグ）イベントの1本だけに絞る。この判定ロジックは次のとおりシンプルになる。
+
+```bash
+if [ "${{ github.event_name }}" = "push" ]; then
+  echo "publish=true" >> "$GITHUB_OUTPUT"
+else
+  echo "publish=false" >> "$GITHUB_OUTPUT"
+fi
+```
+
+3章・5章・7章の該当箇所（`dry_run` 入力の記述、手順書の dry-run の使い方、テスト方針）をこの変更に合わせて修正済み。

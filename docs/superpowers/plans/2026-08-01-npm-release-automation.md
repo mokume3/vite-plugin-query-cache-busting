@@ -116,12 +116,7 @@ name: Publish
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        type: boolean
-        default: true
-        description: 'true の場合 npm publish と GitHub Release 作成をスキップする'
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -165,8 +160,6 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ inputs.dry_run }}" = "false" ]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
@@ -199,7 +192,7 @@ git commit -m "ci: add npm publish workflow with dry-run support"
 
 ```bash
 git push
-gh workflow run publish.yml --ref <このブランチ名> -f dry_run=true
+gh workflow run publish.yml --ref <このブランチ名>
 ```
 
 **この Step は失敗する可能性がある。** GitHub Actions は、ワークフローファイルがデフォルトブランチ（`main`）に一度も存在しないと `workflow_dispatch` を受け付けないことがある。`gh workflow run` が「workflow does not have 'workflow_dispatch' trigger」「could not find any workflows」のようなエラーを返した場合は、このステップを失敗として扱わず、**このタスクのレポートに「feature ブランチでは dry-run できなかった。main へのマージ後に改めて検証する」と明記して次のタスクに進む。**
@@ -210,7 +203,7 @@ gh workflow run publish.yml --ref <このブランチ名> -f dry_run=true
 gh run watch $(gh run list --workflow=publish.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 ```
 
-Expected（dry-run が実行できた場合）: `bun run check`/`test`/`build` は実行され、「Verify tag matches package.json version」「Publish to npm」「Create GitHub Release」の3ステップは `skipped` と表示される（`Verify tag...` は `workflow_dispatch` では常にスキップ、他2つは `dry_run: true` のデフォルトによりスキップ）。
+Expected（dry-run が実行できた場合）: `bun run check`/`test`/`build` は実行され、「Verify tag matches package.json version」「Publish to npm」「Create GitHub Release」の3ステップは `skipped` と表示される（`workflow_dispatch` では `github.event_name` が `push` にならないため、この3ステップはすべて常にスキップされる）。
 
 - [ ] **Step 5: PR に反映されたことを確認する**
 
@@ -299,10 +292,10 @@ npm の Trusted Publisher（GitHub Actions を信頼済みの発行元として�
 
 ## dry-run で試す
 
-実際にタグを push する前に、ビルド・テスト・バージョン検証だけを安全に試したい場合は、GitHub の Actions タブから `Publish` ワークフローを手動実行します。`dry_run` の入力はデフォルトで `true` になっており、その場合 `npm publish` と GitHub Release の作成はスキップされます。
+実際にタグを push する前に、ビルド・テストだけを安全に試したい場合は、GitHub の Actions タブから `Publish` ワークフローを手動実行します。`workflow_dispatch` には入力が無く、常に dry-run 扱いになります（`npm publish` と GitHub Release の作成は常にスキップされます）。
 
 ```bash
-gh workflow run publish.yml --ref main -f dry_run=true
+gh workflow run publish.yml --ref main
 ```
 
 ## トラブルシューティング
@@ -370,11 +363,11 @@ Task 1〜3 のレビューがすべて完了したら、PR をマージする。
 Task 2 の Step 4 で feature ブランチ上の dry-run が「ワークフローが見つからない」等の理由で実行できなかった場合、`main` にマージされた今なら実行できるはずなので、ここで改めて確認する。
 
 ```bash
-gh workflow run publish.yml --ref main -f dry_run=true
+gh workflow run publish.yml --ref main
 gh run watch $(gh run list --workflow=publish.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 ```
 
-Expected: `bun run check`/`test`/`build` が成功し、公開系の2ステップは `skipped` になる。
+Expected: `bun run check`/`test`/`build` が成功し、公開系の2ステップ（`Publish to npm`/`Create GitHub Release`）は `skipped` になる。
 
 - [ ] **Step 3: 人間に初回公開を依頼する**
 
@@ -398,7 +391,7 @@ Expected: `0.0.0` ではなく、人間が実際に公開したバージョン�
 ## 完了条件
 
 - `.github/workflows/ci.yml` が存在し、PR で実際に緑になっている
-- `.github/workflows/publish.yml` が存在し、`main` へのマージ後に `dry_run: true` の手動実行で成功している（公開ステップはスキップされた状態）
+- `.github/workflows/publish.yml` が存在し、`main` へのマージ後に `workflow_dispatch` の手動実行で成功している（公開ステップはスキップされた状態）
 - `RELEASING.md` がリポジトリ直下にあり、`bun run format` を通した状態でコミットされている
 - `npm view vite-plugin-query-cache-busting version` が 404 ではなく実際のバージョンを返す（Task 4 完了後）
 - npmjs.com 上で Trusted Publisher が登録されている（人間が Task 4 で確認）
