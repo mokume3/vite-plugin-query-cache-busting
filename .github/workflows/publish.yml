@@ -51,9 +51,18 @@ jobs:
             echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Determine npm dist-tag
+        id: disttag
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          case "$PKG_VERSION" in
+            *-*) echo "tag=next" >> "$GITHUB_OUTPUT" ;;
+            *) echo "tag=latest" >> "$GITHUB_OUTPUT" ;;
+          esac
+
       - name: Publish to npm
         if: steps.mode.outputs.publish == 'true'
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag "${{ steps.disttag.outputs.tag }}"
 
       - name: Create GitHub Release
         if: steps.mode.outputs.publish == 'true'
