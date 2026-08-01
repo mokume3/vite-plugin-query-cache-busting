@@ -31,7 +31,7 @@ interface PluginState {
 function createInitialState(): PluginState {
   return {
     query: '',
-    // configResolved より前には参照されない前提（Vite のフック呼び出し順序に依存）。
+    // Assumes this is never read before configResolved (relies on Vite's hook call order).
     config: undefined as unknown as ResolvedConfig,
     userRenderBuiltUrl: undefined,
     fileNames: { patch: {}, hashed: [], unverifiable: [] },
@@ -41,7 +41,7 @@ function createInitialState(): PluginState {
   }
 }
 
-/** config フック本体。query の確定と出力ファイル名パッチの決定を行い、次のフックのために state に控える */
+/** Body of the config hook. Resolves the query and decides the output filename patch, storing both in state for the next hook */
 async function handleConfig(
   state: PluginState,
   palette: Palette,
@@ -64,7 +64,7 @@ async function handleConfig(
   }
 }
 
-/** configResolved フック本体。確定した設定を state に控え、非対応構成を検査する */
+/** Body of the configResolved hook. Stores the resolved config in state and checks for unsupported configurations */
 function handleConfigResolved(
   state: PluginState,
   palette: Palette,
@@ -82,7 +82,7 @@ function handleConfigResolved(
   )
 }
 
-/** generateBundle フック本体。手前で server 環境を弾いた後に呼ばれる想定 */
+/** Body of the generateBundle hook. Expected to be called after the server environment has already been filtered out */
 function handleGenerateBundle(
   state: PluginState,
   palette: Palette,
@@ -128,8 +128,9 @@ export function queryCacheBusting(options: Options = {}): Plugin {
     configResolved: (resolvedConfig) =>
       handleConfigResolved(state, palette, renderBuiltUrl, resolvedConfig),
 
-    // vite:build-import-analysis の __vitePreload 依存配列解決（指定子文字列で bundle を
-    // 引く）より後に import を書き換える必要があるため order: 'post' にしている。
+    // order: 'post' because import rewriting must happen after
+    // vite:build-import-analysis resolves the __vitePreload dependency array
+    // (which looks up the bundle by specifier string).
     generateBundle: {
       order: 'post',
       handler(outputOptions, bundle) {

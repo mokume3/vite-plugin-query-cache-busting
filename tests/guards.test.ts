@@ -34,7 +34,7 @@ describe('collectConfigIssues', () => {
     const { errors } = collectConfigIssues({ ...supported, base: './' })
 
     expect(errors).toHaveLength(1)
-    expect(errors[0]?.message).toMatch(/相対 base/)
+    expect(errors[0]?.message).toMatch(/Relative base/)
     expect(errors[0]?.message).toMatch(/\.\//)
   })
 
@@ -72,7 +72,7 @@ describe('collectConfigIssues', () => {
 
     expect(errors).toEqual([])
     expect(warnings).toHaveLength(1)
-    expect(warnings[0]?.message).toMatch(/未検証/)
+    expect(warnings[0]?.message).toMatch(/unverified/)
   })
 
   test('複数の非対応構成をまとめて返す', () => {

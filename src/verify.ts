@@ -15,19 +15,19 @@ const NAME_CHAR_RE = /[A-Za-z0-9_.-]/
 const PATH_CHAR_RE = /[A-Za-z0-9_.:/-]/
 const URL_DELIMITER_RE = /["'`(=]/
 
-/** 中身を走査する対象のファイルか */
+/** Whether this file's content should be scanned */
 export function isScannableFile(fileName: string): boolean {
   return SCANNED_EXTENSIONS.some((extension) => fileName.endsWith(extension))
 }
 
-/** 参照名として追跡する対象のファイルか（sourcemap は URL として参照されないため除外） */
+/** Whether this file should be tracked as a reference name (sourcemaps are excluded since they're never referenced as a URL) */
 export function isTrackedName(fileName: string): boolean {
   return !fileName.endsWith('.map')
 }
 
 /**
- * 出力ファイルの中から、query が付いていない出力ファイル名への参照を探す。
- * 書き換えは行わず検出のみ。
+ * Finds references to output filenames that are missing the query, across all output files.
+ * Detection only — no rewriting happens here.
  */
 export function findMissingQuery(
   files: OutputFile[],
@@ -59,17 +59,18 @@ export function findMissingQuery(
 }
 
 /**
- * 前後がファイル名の一部でないこと（より長いファイル名の一部への一致を弾く）。
- * 4段の判定をすべて満たした場合のみ参照とみなす。
- * 1. 直前が名前構成文字でないこと（"xassets/a.js" のような、より長い識別子の末尾への
- *    偶然の一致を弾く）
- * 2. 直後が名前構成文字でないこと（a.js.map のような、より長いファイル名の一部への
- *    一致を弾く）
- * 3. 一致位置から後ろ向きにパス構成文字（コロン・スラッシュを含む。CDN の絶対 URL
- *    "https://..." を辿りきれるようにするため）を辿る
- * 4. 辿り終えた手前の文字が URL を開く区切り文字（" ' ` ( =）であること。
- *    空白は区切り文字に含めない（コメント内のパスを弾くため）。ファイル先頭に
- *    達した場合は区切り文字が無いので参照とみなさない。
+ * Checks that neither side of the match is part of a longer filename (rejects an
+ * incidental match against part of a longer filename). A match only counts as a
+ * reference if all four checks pass.
+ * 1. The character right before is not a name character (rejects an incidental match
+ *    against the tail of a longer identifier, like "xassets/a.js")
+ * 2. The character right after is not a name character (rejects a match against part
+ *    of a longer filename, like a.js.map)
+ * 3. Walk backward from the match through path characters (including colon and slash,
+ *    so an absolute CDN URL like "https://..." can be walked all the way through)
+ * 4. The character just before where that walk stopped must be a URL-opening delimiter
+ *    (" ' ` ( =). Whitespace is not a delimiter (to reject paths inside comments). If the
+ *    walk reaches the start of the file, there's no delimiter, so it doesn't count as a reference.
  */
 function isReferenceBoundary(content: string, index: number, name: string): boolean {
   if (index > 0 && NAME_CHAR_RE.test(content[index - 1] ?? '')) return false

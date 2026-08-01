@@ -5,9 +5,9 @@
   "keywords": [
     "cache",
     "cache-busting",
-    "query",
     "vite",
-    "vite-plugin"
+    "vite-plugin",
+    "vitejs"
   ],
   "homepage": "https://github.com/mokume3/vite-plugin-query-cache-busting#readme",
   "bugs": {

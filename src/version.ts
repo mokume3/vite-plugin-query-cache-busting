@@ -2,7 +2,7 @@ export type VersionOption = string | (() => string | undefined | Promise<string 
 
 const pad = (value: number): string => String(value).padStart(2, '0')
 
-/** Date をローカル時刻の YYYYMMDDHHmm にする */
+/** Formats a Date as local time YYYYMMDDHHmm */
 export function formatTimestamp(date: Date): string {
   return [
     String(date.getFullYear()),
@@ -14,8 +14,8 @@ export function formatTimestamp(date: Date): string {
 }
 
 /**
- * version オプションを解決する。
- * 関数が undefined か空文字を返した場合はタイムスタンプにフォールバックする。
+ * Resolves the version option.
+ * Falls back to a timestamp if the function returns undefined or an empty string.
  */
 export async function resolveVersion(
   version: VersionOption | undefined,

@@ -7,22 +7,22 @@ export interface OutputFileNames {
 }
 
 export interface FileNamesDecision {
-  /** プラグインが設定するパターン（利用者が明示指定したキーは含まない） */
+  /** Patterns the plugin sets (excludes keys the user explicitly configured) */
   patch: Partial<OutputFileNames>
-  /** 利用者が指定したパターンのうち [hash] を含むキー */
+  /** User-configured pattern keys that contain [hash] */
   hashed: string[]
-  /** 関数で指定されていて静的に検証できないキー */
+  /** Keys configured as a function, which can't be statically verified */
   unverifiable: string[]
 }
 
 const FILE_NAME_KEYS = ['entryFileNames', 'chunkFileNames', 'assetFileNames'] as const
 
-/** パターンにコンテンツハッシュのプレースホルダが含まれるか */
+/** Whether the pattern contains a content-hash placeholder */
 export function containsHashPlaceholder(pattern: string): boolean {
   return HASH_PLACEHOLDER_RE.test(pattern)
 }
 
-/** ハッシュを含まない出力ファイル名パターンを組み立てる */
+/** Builds hash-free output filename patterns */
 export function buildFileNames(assetsDir: string): OutputFileNames {
   const prefix = assetsDir === '' ? '' : `${assetsDir}/`
 
@@ -34,8 +34,8 @@ export function buildFileNames(assetsDir: string): OutputFileNames {
 }
 
 /**
- * 利用者の output 設定を見て、プラグインが補うパターンと検査結果を返す。
- * 利用者が明示指定したキーは尊重し、上書きしない。
+ * Looks at the user's output config and returns the patterns the plugin should fill in,
+ * along with the inspection results. Keys the user explicitly configured are respected and never overwritten.
  */
 export function decideFileNames(
   userOutput: Record<string, unknown>,

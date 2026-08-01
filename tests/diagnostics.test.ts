@@ -7,18 +7,16 @@ describe('diagnostics', () => {
     const diagnostic = diagnostics.QCB_LIB_MODE()
 
     expect(diagnostic.name).toBe('QCB_LIB_MODE')
-    expect(diagnostic.message).toBe(
-      'ライブラリモード（build.lib）には対応していません: build.lib が設定されています',
-    )
+    expect(diagnostic.message).toBe('Library mode (build.lib) is not supported: build.lib is set')
     expect(diagnostic.fix).toBe(
-      '配布物の import 指定子に query が付くと、利用側のバンドラや Node のモジュール解決が壊れるためです。ライブラリのビルドでは plugins からこのプラグインを外してください。',
+      "Adding a query to import specifiers in the distributed output would break the consumer's bundler or Node's module resolution. Remove this plugin from plugins for library builds.",
     )
   })
 
   test('関数の why はパラメータを埋め込む', () => {
     const diagnostic = diagnostics.QCB_VITE_TOO_OLD({ viteMajor: 7 })
 
-    expect(diagnostic.message).toBe('Vite 8 以上が必要です（検出: 7）')
+    expect(diagnostic.message).toBe('Vite 8 or later is required (detected: 7)')
   })
 
   test('paths 配列を渡すコードは読点で連結する', () => {
@@ -30,7 +28,7 @@ describe('diagnostics', () => {
     })
 
     expect(diagnostic.message).toBe(
-      '出力ファイル名パターンに [hash] が含まれています: build.rollupOptions.output.entryFileNames、worker.rolldownOptions.output.chunkFileNames',
+      'The output filename pattern contains [hash]: build.rollupOptions.output.entryFileNames, worker.rolldownOptions.output.chunkFileNames',
     )
   })
 
@@ -40,7 +38,7 @@ describe('diagnostics', () => {
       sources: ['assets/index.js:1:2043', 'assets/manifest.json:1:88'],
     })
 
-    expect(diagnostic.message).toBe('query 未付与の参照が 2 件あります')
+    expect(diagnostic.message).toBe('2 reference(s) are missing the query')
     expect(diagnostic.sources).toEqual(['assets/index.js:1:2043', 'assets/manifest.json:1:88'])
   })
 

@@ -3,8 +3,8 @@ import { appendQuery } from './url'
 const PATH_ARRAY_FIELDS = ['css', 'assets'] as const
 
 /**
- * Vite の manifest 内のファイルパスに query を付与する。
- * imports / dynamicImports は manifest のキーでありパスではないため書き換えない。
+ * Appends a query to file paths in Vite's manifest.
+ * imports / dynamicImports are manifest keys, not paths, so they're left untouched.
  */
 export function rewriteManifest(source: string, query: string): string {
   const manifest = JSON.parse(source) as Record<string, Record<string, unknown>>
@@ -28,8 +28,8 @@ export function rewriteManifest(source: string, query: string): string {
 }
 
 /**
- * ssr-manifest.json の各値（URL の配列）に query を付与する。
- * キーはモジュール ID（NUL 文字を含むこともある内部 ID）でありパスではないため書き換えない。
+ * Appends a query to each value (an array of URLs) in ssr-manifest.json.
+ * Keys are module IDs (internal IDs that may contain a NUL character), not paths, so they're left untouched.
  */
 export function rewriteSsrManifest(source: string, query: string): string {
   const manifest = JSON.parse(source) as Record<string, unknown>

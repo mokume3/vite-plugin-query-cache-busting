@@ -25,7 +25,7 @@ function throwIssue(palette: Palette, issue: Parameters<typeof formatDiagnostic>
 
 export type WorkerOutputKey = 'rollupOptions' | 'rolldownOptions'
 
-/** config フックが返す environments.client/worker のパッチと、あとで使う fileNames・workerFileNames をまとめて決める */
+/** Decides the environments.client/worker patch returned by the config hook, along with fileNames/workerFileNames for later use */
 export function decideOutputFileNames(
   palette: Palette,
   userConfig: UserConfig,
@@ -37,15 +37,16 @@ export function decideOutputFileNames(
   worker: Partial<Record<WorkerOutputKey, { output: Partial<OutputFileNames> }>>
 } {
   const assetsDir = userConfig.build?.assetsDir ?? DEFAULT_ASSETS_DIR
-  // SSR はこのプラグインの対象外。build.rollupOptions.output を無条件でパッチすると
-  // environments.client を継承しない SSR ビルドまで巻き込むため、client 環境だけに書く。
+  // SSR is out of scope for this plugin. Patching build.rollupOptions.output unconditionally
+  // would also affect SSR builds that don't inherit environments.client, so this only
+  // writes to the client environment.
   const output =
     userConfig.environments?.client?.build?.rollupOptions?.output ??
     userConfig.build?.rollupOptions?.output
   const rolldownOutput = userConfig.worker?.rolldownOptions?.output
   const rollupOutput = userConfig.worker?.rollupOptions?.output
 
-  // output を持っているのが deprecated な rollupOptions だけなら、そちらに書き戻す
+  // If only the deprecated rollupOptions has an output, write back to that instead
   const workerKey: WorkerOutputKey =
     rolldownOutput === undefined && rollupOutput !== undefined ? 'rollupOptions' : 'rolldownOptions'
   const workerOut = rolldownOutput ?? rollupOutput
@@ -64,7 +65,7 @@ export function decideOutputFileNames(
   }
 }
 
-/** 主ビルドと worker の出力ファイル名パターンの問題キーに、実際の設定パスを前置する */
+/** Prefixes the problem keys for the main build and worker output filename patterns with their actual config paths */
 function toConfigPaths(
   fileNames: FileNamesDecision,
   workerFileNames: FileNamesDecision,
@@ -81,7 +82,7 @@ function toConfigPaths(
   return { hashed, unverifiable }
 }
 
-/** configResolved 時点の設定値から問題を集め、警告ログと例外に変換する */
+/** Collects problems from the config values at configResolved time, and turns them into warning logs and exceptions */
 export function applyResolvedConfigIssues(
   palette: Palette,
   resolvedConfig: ResolvedConfig,
@@ -114,7 +115,7 @@ export function applyResolvedConfigIssues(
   }
 }
 
-/** 既存の renderBuiltUrl 呼び出し結果を踏まえて、query 付きの URL を組み立てる */
+/** Builds a query-appended URL, taking into account the result of calling the existing renderBuiltUrl */
 export function resolveBuiltUrl(
   palette: Palette,
   config: ResolvedConfig,

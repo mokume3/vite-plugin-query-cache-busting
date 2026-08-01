@@ -15,7 +15,7 @@ function throwIssue(palette: Palette, issue: Parameters<typeof formatDiagnostic>
   throw new Error(formatDiagnostic(palette, 'error', issue))
 }
 
-/** config.build.manifest / config.build.ssrManifest から、書き換え対象のファイル名を決める */
+/** Decides the target filenames to rewrite from config.build.manifest / config.build.ssrManifest */
 export function resolveManifestTarget(config: ResolvedConfig): {
   manifestOption: ResolvedConfig['build']['manifest']
   manifestFileName: string
@@ -33,7 +33,7 @@ export function resolveManifestTarget(config: ResolvedConfig): {
   return { manifestOption, manifestFileName, ssrManifestOption, ssrManifestFileName }
 }
 
-/** renderBuiltUrl ラッパーが一度も呼ばれていないのにアセットが出力されていないかを検査する */
+/** Checks whether assets were emitted even though the renderBuiltUrl wrapper was never called */
 export function detectApiDrift(
   palette: Palette,
   bundle: Rollup.OutputBundle,
@@ -49,7 +49,7 @@ export function detectApiDrift(
   if (!wrapperCalled && hasRenderableAssets) throwIssue(palette, apiDriftIssue())
 }
 
-/** ES 形式の出力に限り、チャンク間 import の指定子に query を書き換える */
+/** Rewrites chunk-to-chunk import specifiers to include the query, but only for ES-format output */
 export function rewriteChunkImports(
   palette: Palette,
   config: ResolvedConfig,
@@ -71,7 +71,7 @@ export function rewriteChunkImports(
   }
 }
 
-/** manifest ファイルの中身に query を書き加える（manifest が有効な場合のみ） */
+/** Adds the query to the manifest file's content (only when manifest is enabled) */
 export function rewriteManifestOutput(
   palette: Palette,
   bundle: Rollup.OutputBundle,
@@ -88,7 +88,7 @@ export function rewriteManifestOutput(
   manifest.source = rewriteManifest(String(manifest.source), query)
 }
 
-/** ssr-manifest ファイルの値（URL 配列）に query を書き加える（ssrManifest が有効な場合のみ） */
+/** Adds the query to the ssr-manifest file's values (arrays of URLs), only when ssrManifest is enabled */
 export function rewriteSsrManifestOutput(
   palette: Palette,
   bundle: Rollup.OutputBundle,
@@ -105,7 +105,7 @@ export function rewriteSsrManifestOutput(
   ssrManifest.source = rewriteSsrManifest(String(ssrManifest.source), query)
 }
 
-/** verify とサマリログのために、manifest 類を除いた出力ファイルと参照名の一覧を集める */
+/** Collects output files and reference names (excluding the manifests) for verify and the summary log */
 export function collectOutputFiles(
   bundle: Rollup.OutputBundle,
   excludedFileNames: string[],
@@ -132,7 +132,7 @@ export function collectOutputFiles(
   return { files, referenceNames }
 }
 
-/** query 未付与の参照が残っていないかを検証し、verify モードに応じて警告または例外を出す */
+/** Verifies that no reference is missing the query, emitting a warning or exception depending on verify mode */
 export function verifyOutput(
   palette: Palette,
   config: ResolvedConfig,
@@ -158,7 +158,7 @@ export function verifyOutput(
   config.logger.warn(message)
 }
 
-/** 出力ファイルごとに query の出現回数を拡張子別に数える */
+/** Counts how many times the query appears per output file, broken down by extension */
 function countByExtension(files: OutputFile[], query: string): Record<string, number> {
   const counts: Record<string, number> = {}
   const needle = `?${query}`
@@ -179,7 +179,7 @@ function countByExtension(files: OutputFile[], query: string): Record<string, nu
   return counts
 }
 
-/** ビルド結果のサマリを info ログに出す */
+/** Emits a summary of the build result as an info log */
 export function logSummary(
   palette: Palette,
   config: ResolvedConfig,
@@ -190,8 +190,8 @@ export function logSummary(
 }
 
 /**
- * generateBundle フックの本体を、決められた順序で実行する。
- * ドリフト検知 → チャンク間 import 書き換え → manifest 書き換え → verify → サマリ、の順は変えないこと。
+ * Runs the body of the generateBundle hook in a fixed order.
+ * Do not change the order: drift detection → chunk-to-chunk import rewriting → manifest rewriting → verify → summary.
  */
 export function runGenerateBundleStep(
   palette: Palette,

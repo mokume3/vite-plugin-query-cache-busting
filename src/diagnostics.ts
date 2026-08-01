@@ -4,64 +4,64 @@ export const diagnostics = defineDiagnostics({
   codes: {
     QCB_RELATIVE_BASE: {
       why: (p: { base: string }) =>
-        `相対 base には対応していません: base: ${JSON.stringify(p.base)}`,
-      fix: "相対 base では Vite が JS 内の URL を実行時計算に切り替えるため、query を静的に付与できません。絶対パス（例: base: '/'）を指定してください。",
+        `Relative base is not supported: base: ${JSON.stringify(p.base)}`,
+      fix: "With a relative base, Vite switches to computing JS-side URLs at runtime, so the query can't be applied statically. Use an absolute path (e.g. base: '/').",
     },
     QCB_LIB_MODE: {
-      why: 'ライブラリモード（build.lib）には対応していません: build.lib が設定されています',
-      fix: '配布物の import 指定子に query が付くと、利用側のバンドラや Node のモジュール解決が壊れるためです。ライブラリのビルドでは plugins からこのプラグインを外してください。',
+      why: 'Library mode (build.lib) is not supported: build.lib is set',
+      fix: "Adding a query to import specifiers in the distributed output would break the consumer's bundler or Node's module resolution. Remove this plugin from plugins for library builds.",
     },
     QCB_CHUNK_IMPORT_MAP: {
-      why: 'build.chunkImportMap と併用できません: build.chunkImportMap が有効になっています',
-      fix: 'Vite 自身が build.chunkImportMap と experimental.renderBuiltUrl の併用を非対応としています。どちらか一方を無効にしてください。',
+      why: 'Cannot be combined with build.chunkImportMap: build.chunkImportMap is enabled',
+      fix: 'Vite itself does not support combining build.chunkImportMap with experimental.renderBuiltUrl. Disable one of the two.',
     },
     QCB_VITE_TOO_OLD: {
-      why: (p: { viteMajor: number }) => `Vite 8 以上が必要です（検出: ${p.viteMajor}）`,
-      fix: 'experimental.renderBuiltUrl と parseAst の前提が Vite 8 未満では揃いません。Vite 8 以上にアップグレードしてください。',
+      why: (p: { viteMajor: number }) => `Vite 8 or later is required (detected: ${p.viteMajor})`,
+      fix: 'The assumptions behind experimental.renderBuiltUrl and parseAst do not hold below Vite 8. Upgrade to Vite 8 or later.',
     },
     QCB_VITE_UNVERIFIED: {
-      why: (p: { viteMajor: number }) => `Vite ${p.viteMajor} は未検証です`,
-      fix: 'このプラグインは Vite 8 でのみ検証されています。ビルド後に verify の警告が出ていないか確認してください。',
+      why: (p: { viteMajor: number }) => `Vite ${p.viteMajor} is unverified`,
+      fix: 'This plugin has only been verified against Vite 8. Check that no verify warnings appear after the build.',
     },
     QCB_RENDER_BUILT_URL_HIJACKED: {
-      why: 'experimental.renderBuiltUrl が別のプラグインに上書きされています: 解決後の設定値がこのプラグインのラッパーではありません',
-      fix: 'renderBuiltUrl は1つしか設定できないため、このままではキャッシュバスティングが無言で無効になります。競合するプラグインを外すか、順序を調整してください。',
+      why: "experimental.renderBuiltUrl has been overridden by another plugin: the resolved config value is not this plugin's wrapper",
+      fix: 'Only one renderBuiltUrl can be configured, so cache busting would otherwise be silently disabled. Remove the conflicting plugin or adjust plugin order.',
     },
     QCB_RENDER_BUILT_URL_OBJECT: {
-      why: '既存の renderBuiltUrl がオブジェクトを返しました: { relative } / { runtime } の戻り値には対応していません',
-      fix: '実行時計算になるため query を静的に付与できません。既存の renderBuiltUrl が文字列を返すようにしてください。',
+      why: 'The existing renderBuiltUrl returned an object: { relative } / { runtime } return values are not supported',
+      fix: 'That implies runtime computation, so the query cannot be applied statically. Make the existing renderBuiltUrl return a string instead.',
     },
     QCB_API_DRIFT: {
-      why: 'renderBuiltUrl がビルド中に一度も呼ばれませんでした: アセット・CSS・HTML が出力されているのにフックが呼ばれていません',
-      fix: 'Vite 側の experimental.renderBuiltUrl の仕様が変わった可能性があります。このプラグインのバージョンと Vite のバージョンの組み合わせを確認してください。',
+      why: 'renderBuiltUrl was never called during the build: assets, CSS, or HTML were emitted but the hook was never invoked',
+      fix: "Vite's experimental.renderBuiltUrl API may have changed. Check the combination of this plugin's version and your Vite version.",
     },
     QCB_NON_ES_FORMAT: {
       why: (p: { format: string }) =>
-        `ES 形式以外の出力ではチャンク間 import を書き換えられません: output.format: ${p.format}`,
-      fix: 'SystemJS などの形式では import 指定子が AST の import ノードとして現れないためです。アセット・CSS・HTML への query 付与は引き続き行われます。',
+        `Chunk-to-chunk imports cannot be rewritten for non-ES output: output.format: ${p.format}`,
+      fix: 'Formats like SystemJS do not represent import specifiers as AST import nodes. Query busting for assets, CSS, and HTML still happens as usual.',
     },
     QCB_MANIFEST_MISSING: {
       why: (p: { manifestFileName: string }) =>
-        `manifest を書き換えられませんでした: 出力に ${p.manifestFileName} が見つかりません`,
-      fix: 'Vite の manifest 生成がこのプラグインより後で行われた可能性があります。このままではバックエンド統合時に query が付かないため、ビルドを中断しました。',
+        `Could not rewrite the manifest: ${p.manifestFileName} was not found in the output`,
+      fix: "Vite's manifest generation may be running after this plugin. The build was aborted because the query would otherwise be missing when integrating with a backend.",
     },
     QCB_HASHED_FILENAME_PATTERN: {
       why: (p: { paths: string[] }) =>
-        `出力ファイル名パターンに [hash] が含まれています: ${p.paths.join('、')}`,
-      fix: 'ファイル名ハッシュと query の二重掛けになり、このプラグインを使う意味がなくなります。パターンから [hash] を外してください。',
+        `The output filename pattern contains [hash]: ${p.paths.join(', ')}`,
+      fix: 'This would double up filename hashing and query busting, defeating the point of this plugin. Remove [hash] from the pattern.',
     },
     QCB_UNVERIFIABLE_FILENAME_PATTERN: {
       why: (p: { paths: string[] }) =>
-        `出力ファイル名パターンが関数で指定されているため検証できません: ${p.paths.join('、')}`,
-      fix: '関数が [hash] を含む名前を返さないか、静的に判定できません。ビルド後に出力ファイル名にハッシュが付いていないか確認してください。',
+        `The output filename pattern is a function, so it cannot be verified: ${p.paths.join(', ')}`,
+      fix: 'It cannot be statically determined whether the function returns a name containing [hash]. Check after the build that output filenames are not hashed.',
     },
     QCB_MULTIPLE_OUTPUTS: {
-      why: 'build.rollupOptions.output が配列（複数出力）の構成には対応していません: output が配列で指定されています',
-      fix: 'v1 では単一出力のみ対応しています。output を単一のオブジェクトにしてください。',
+      why: 'An array build.rollupOptions.output (multiple outputs) is not supported: output is specified as an array',
+      fix: 'v1 only supports a single output. Make output a single object.',
     },
     QCB_MISSING_QUERY: {
-      why: (p: { count: number }) => `query 未付与の参照が ${p.count} 件あります`,
-      fix: "ソース中に文字列でハードコードされたパスの可能性があります。意図的な場合は verify: 'off' で抑制できます。",
+      why: (p: { count: number }) => `${p.count} reference(s) are missing the query`,
+      fix: "This may be a path hardcoded as a string in the source. If intentional, suppress this with verify: 'off'.",
     },
   },
 })

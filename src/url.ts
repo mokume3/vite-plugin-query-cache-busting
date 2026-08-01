@@ -2,8 +2,8 @@ const EXTERNAL_URL_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i
 const DATA_OR_BLOB_URL_RE = /^(?:data|blob):/i
 
 /**
- * URL にクエリ文字列を付与する。
- * 外部 URL・data:・blob: は対象外。ハッシュフラグメントの手前に挿入する。
+ * Appends a query string to a URL.
+ * External URLs, data:, and blob: are excluded. Inserted before any hash fragment.
  */
 export function appendQuery(url: string, query: string): string {
   if (query === '') return url
@@ -18,9 +18,9 @@ export function appendQuery(url: string, query: string): string {
 }
 
 /**
- * このプラグインが出力した資産を指す URL にクエリを付ける。
- * appendQuery と違い http/https/プロトコル相対も対象にする（CDN の base を想定）。
- * data: と blob: だけは対象外。ハッシュフラグメントの手前に挿入する。
+ * Appends a query to a URL pointing at an asset emitted by this plugin.
+ * Unlike appendQuery, http/https and protocol-relative URLs are also included (for a CDN base).
+ * Only data: and blob: are excluded. Inserted before any hash fragment.
  */
 export function appendQueryToBuiltUrl(url: string, query: string): string {
   if (query === '') return url
@@ -34,13 +34,13 @@ export function appendQueryToBuiltUrl(url: string, query: string): string {
   return `${pathname}${separator}${query}${hash}`
 }
 
-/** key と version からクエリ文字列を組み立てる */
+/** Builds the query string from key and version */
 export function buildQuery(key: string | false, version: string): string {
   const encodedVersion = encodeURIComponent(version)
   return key === false ? encodedVersion : `${encodeURIComponent(key)}=${encodedVersion}`
 }
 
-/** base と出力ファイル名を結合する（Vite 内部の joinUrlSegments 相当） */
+/** Joins base and an output filename (equivalent to Vite's internal joinUrlSegments) */
 export function joinUrlSegments(base: string, path: string): string {
   if (base === '' || path === '') return base + path
 

@@ -78,15 +78,15 @@ The plugin does nothing for SSR builds (`vite build --ssr`) — output filenames
 Unsupported configurations and post-build verification are reported in the same "diagnostic code + tree" style as [nostics](https://nostics.dev).
 
 ```
-[QCB_RELATIVE_BASE] error  相対 base には対応していません: base: "./"
-╰▶ fix: 相対 base では Vite が JS 内の URL を実行時計算に切り替えるため、query を静的に付与できません。絶対パス（例: base: '/'）を指定してください。
+[QCB_RELATIVE_BASE] error  Relative base is not supported: base: "./"
+╰▶ fix: With a relative base, Vite switches to computing JS-side URLs at runtime, so the query can't be applied statically. Use an absolute path (e.g. base: '/').
 ```
 
 Verify warnings/errors collect every un-busted reference's location into `sources`.
 
 ```
-[QCB_MISSING_QUERY] warn  query 未付与の参照が 2 件あります
-├▶ fix: ソース中に文字列でハードコードされたパスの可能性があります。意図的な場合は verify: 'off' で抑制できます。
+[QCB_MISSING_QUERY] warn  2 reference(s) are missing the query
+├▶ fix: This may be a path hardcoded as a string in the source. If intentional, suppress this with verify: 'off'.
 ├▶ sources: assets/index.js:1:2043
 ╰▶ sources: assets/index.css:1:88
 ```

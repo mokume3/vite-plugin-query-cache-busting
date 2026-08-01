@@ -9,7 +9,7 @@ export interface ConfigSnapshot {
   viteMajor: number
 }
 
-/** バージョン文字列からメジャーバージョンを取り出す。解釈できなければ 0 */
+/** Extracts the major version from a version string. Returns 0 if it can't be parsed */
 export function parseMajor(version: string): number {
   const major = Number.parseInt(version.split('.')[0] ?? '', 10)
   return Number.isNaN(major) ? 0 : major

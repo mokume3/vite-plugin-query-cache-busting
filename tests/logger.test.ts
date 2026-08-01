@@ -10,17 +10,19 @@ const plain = createPalette(new Ansis(0))
 describe('formatSummary', () => {
   test('付与件数と内訳を1行で返す', () => {
     expect(formatSummary(plain, 'v=202607302209', { js: 8, css: 3, html: 3 })).toBe(
-      '[query-cache-busting] ?v=202607302209 を 14 件の参照に付与 (js 8, css 3, html 3)',
+      '[query-cache-busting] applied ?v=202607302209 to 14 reference(s) (js 8, css 3, html 3)',
     )
   })
 
   test('内訳が空なら括弧を出さない', () => {
-    expect(formatSummary(plain, 'v=1', {})).toBe('[query-cache-busting] ?v=1 を 0 件の参照に付与')
+    expect(formatSummary(plain, 'v=1', {})).toBe(
+      '[query-cache-busting] applied ?v=1 to 0 reference(s)',
+    )
   })
 
   test('件数 0 の拡張子は内訳に出さない', () => {
     expect(formatSummary(plain, 'v=1', { js: 2, css: 0 })).toBe(
-      '[query-cache-busting] ?v=1 を 2 件の参照に付与 (js 2)',
+      '[query-cache-busting] applied ?v=1 to 2 reference(s) (js 2)',
     )
   })
 })

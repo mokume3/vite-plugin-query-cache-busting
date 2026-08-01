@@ -10,7 +10,7 @@ const basicRoot = fileURLToPath(new URL('../fixtures/basic', import.meta.url))
 describe('非対応構成', () => {
   test('相対 base はビルドを落とす', async () => {
     await expect(buildFixture(basicRoot, { version: 'testver' }, { base: './' })).rejects.toThrow(
-      /相対 base/,
+      /Relative base/,
     )
   })
 

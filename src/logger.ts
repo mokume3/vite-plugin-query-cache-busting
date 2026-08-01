@@ -15,8 +15,8 @@ export interface Palette {
 }
 
 /**
- * 配色を作る。
- * テストでは new Ansis(0) を渡して色を無効化し、メッセージの中身を検証する。
+ * Builds the color palette.
+ * Tests pass new Ansis(0) to disable colors and assert on the message content.
  */
 export function createPalette(ansis: Ansis = new Ansis()): Palette {
   return {
@@ -40,15 +40,15 @@ export function formatSummary(
     .map(([extension, count]) => `${extension} ${count}`)
     .join(', ')
 
-  const head = `${palette.prefix(LOG_PREFIX)} ${palette.query(`?${query}`)} を ${palette.count(String(total))} 件の参照に付与`
+  const head = `${palette.prefix(LOG_PREFIX)} applied ${palette.query(`?${query}`)} to ${palette.count(String(total))} reference(s)`
 
   return breakdown === '' ? head : `${head} (${breakdown})`
 }
 
 /**
- * 診断を [CODE] level  message の見出し + fix/sources のツリー表示に整形する。
- * nostics の formatDiagnostic/ansiFormatter と同じレイアウト（├▶/╰▶ 接続）を踏襲するが、
- * severity（error/warn）の文字表記と色分けを自前で加えている。
+ * Formats a diagnostic as a "[CODE] level  message" header plus a fix/sources tree.
+ * Follows the same layout as nostics' formatDiagnostic/ansiFormatter (├▶/╰▶ connectors),
+ * but adds its own severity (error/warn) label text and coloring.
  */
 export function formatDiagnostic(
   palette: Palette,
