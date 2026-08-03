@@ -6,6 +6,7 @@ import { formatDiagnostic, formatSummary, type Palette } from './logger'
 import { rewriteManifest, rewriteSsrManifest } from './manifest'
 import type { VerifyMode } from './options'
 import { rewriteImports } from './rewrite-imports'
+import { countQueryParams } from './url'
 import { findMissingQuery, isTrackedName, type OutputFile } from './verify'
 
 const DEFAULT_MANIFEST_FILE_NAME = '.vite/manifest.json'
@@ -161,17 +162,10 @@ export function verifyOutput(
 /** Counts how many times the query appears per output file, broken down by extension */
 function countByExtension(files: OutputFile[], query: string): Record<string, number> {
   const counts: Record<string, number> = {}
-  const needle = `?${query}`
 
   for (const file of files) {
     const extension = file.fileName.slice(file.fileName.lastIndexOf('.') + 1)
-    let occurrences = 0
-    let index = file.content.indexOf(needle)
-
-    while (index !== -1) {
-      occurrences += 1
-      index = file.content.indexOf(needle, index + 1)
-    }
+    const occurrences = countQueryParams(file.content, query)
 
     if (occurrences > 0) counts[extension] = (counts[extension] ?? 0) + occurrences
   }

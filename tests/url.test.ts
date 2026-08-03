@@ -4,6 +4,7 @@ import {
   appendQuery,
   appendQueryToBuiltUrl,
   buildQuery,
+  countQueryParams,
   hasQueryParam,
   joinUrlSegments,
 } from '../src/url'
@@ -139,6 +140,24 @@ describe('hasQueryParam', () => {
 
   test('query が空文字なら false', () => {
     expect(hasQueryParam('/a.js?v=1"', 5, '')).toBe(false)
+  })
+})
+
+describe('countQueryParams', () => {
+  test('? 連結と & 連結の両方を数える', () => {
+    expect(countQueryParams('"/a.js?v=1" "/b.js?x=1&v=1"', 'v=1')).toBe(2)
+  })
+
+  test('HTML エスケープされた &amp; の後ろも数える', () => {
+    expect(countQueryParams('"/a.js?token=xyz&amp;v=1"', 'v=1')).toBe(1)
+  })
+
+  test('前方一致は数えない', () => {
+    expect(countQueryParams('"/a.js?v=10"', 'v=1')).toBe(0)
+  })
+
+  test('query が空文字なら 0', () => {
+    expect(countQueryParams('"/a.js?v=1"', '')).toBe(0)
   })
 })
 

@@ -4,6 +4,8 @@ const DATA_OR_BLOB_URL_RE = /^(?:data|blob):/i
 /**
  * Characters that terminate a URL query string in built output.
  * Built URLs live inside JS string literals, CSS url(), and HTML attributes.
+ * ';' is intentionally excluded: it ends the '&amp;' HTML entity, so treating it as a
+ * terminator would truncate '&amp;'-joined query parameters and reintroduce that bug.
  */
 const QUERY_END_RE = /["'`\s#<>()]/
 
@@ -79,6 +81,27 @@ export function hasQueryParam(text: string, index: number, query: string): boole
     .slice(index + 1, end)
     .split(QUERY_SEPARATOR_RE)
     .includes(query)
+}
+
+/** Counts how many times `query` appears as a complete URL query parameter in `text` */
+export function countQueryParams(text: string, query: string): number {
+  if (query === '') return 0
+
+  let count = 0
+  let index = text.indexOf(query)
+
+  while (index !== -1) {
+    const after = text[index + query.length]
+    const afterSeparator =
+      text[index - 1] === '?' || text[index - 1] === '&' || text.endsWith('&amp;', index)
+
+    if (afterSeparator && (after === undefined || after === '&' || QUERY_END_RE.test(after))) {
+      count += 1
+    }
+    index = text.indexOf(query, index + 1)
+  }
+
+  return count
 }
 
 /** Joins base and an output filename (equivalent to Vite's internal joinUrlSegments) */
