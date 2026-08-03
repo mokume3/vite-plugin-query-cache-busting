@@ -96,6 +96,14 @@ describe('buildQuery', () => {
   test('version を URL エンコードする', () => {
     expect(buildQuery('v', 'a b')).toBe('v=a%20b')
   })
+
+  test("encodeURIComponent が素通しする !~*'() もエンコードする", () => {
+    expect(buildQuery('v', '1.0(beta)')).toBe('v=1.0%28beta%29')
+  })
+
+  test('key 側の記号もエンコードする', () => {
+    expect(buildQuery("v'", '1')).toBe('v%27=1')
+  })
 })
 
 describe('joinUrlSegments', () => {

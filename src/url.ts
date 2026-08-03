@@ -34,10 +34,24 @@ export function appendQueryToBuiltUrl(url: string, query: string): string {
   return `${pathname}${separator}${query}${hash}`
 }
 
+const EXTRA_ENCODE_RE = /[!~*'()]/g
+
+/**
+ * Percent-encodes a query component.
+ * encodeURIComponent leaves !~*'() unescaped, but those collide with the delimiters
+ * used when scanning built output, so they are encoded here as well.
+ */
+function encodeQueryComponent(value: string): string {
+  return encodeURIComponent(value).replace(
+    EXTRA_ENCODE_RE,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
+}
+
 /** Builds the query string from key and version */
 export function buildQuery(key: string | false, version: string): string {
-  const encodedVersion = encodeURIComponent(version)
-  return key === false ? encodedVersion : `${encodeURIComponent(key)}=${encodedVersion}`
+  const encodedVersion = encodeQueryComponent(version)
+  return key === false ? encodedVersion : `${encodeQueryComponent(key)}=${encodedVersion}`
 }
 
 /** Joins base and an output filename (equivalent to Vite's internal joinUrlSegments) */
