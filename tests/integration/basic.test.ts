@@ -109,4 +109,22 @@ describe('basic fixture', () => {
       )
     }
   })
+
+  test('renderBuiltUrl が query 付き URL を返しても未付与と誤検知しない', async () => {
+    const files = await buildFixture(
+      basicRoot,
+      { version: 'testver' },
+      {
+        experimental: {
+          renderBuiltUrl: (filename: string) => `https://cdn.example.com/${filename}?token=xyz`,
+        },
+      },
+    )
+    const html = filesByExtension(files, '.html')[0]
+
+    expect(html?.content).toMatch(
+      /<script[^>]+src="https:\/\/cdn\.example\.com\/assets\/[\w.-]+\.js\?token=xyz&(amp;)?v=testver"/,
+    )
+    expectAllReferencesBusted(files, query)
+  })
 })

@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest'
 
-import { appendQuery, appendQueryToBuiltUrl, buildQuery, joinUrlSegments } from '../src/url'
+import {
+  appendQuery,
+  appendQueryToBuiltUrl,
+  buildQuery,
+  hasQueryParam,
+  joinUrlSegments,
+} from '../src/url'
 
 describe('appendQuery', () => {
   test('クエリが無い URL には ? で連結する', () => {
@@ -103,6 +109,36 @@ describe('buildQuery', () => {
 
   test('key 側の記号もエンコードする', () => {
     expect(buildQuery("v'", '1')).toBe('v%27=1')
+  })
+})
+
+describe('hasQueryParam', () => {
+  test('? 直後に一致する query があれば true', () => {
+    expect(hasQueryParam('/a.js?v=1"', 5, 'v=1')).toBe(true)
+  })
+
+  test('& で連結された query も検出する', () => {
+    expect(hasQueryParam('/a.js?token=xyz&v=1"', 5, 'v=1')).toBe(true)
+  })
+
+  test('HTML エスケープされた &amp; も区切りとして扱う', () => {
+    expect(hasQueryParam('/a.js?token=xyz&amp;v=1"', 5, 'v=1')).toBe(true)
+  })
+
+  test('前方一致は一致とみなさない', () => {
+    expect(hasQueryParam('/a.js?v=10"', 5, 'v=1')).toBe(false)
+  })
+
+  test('query 文字列自体が無ければ false', () => {
+    expect(hasQueryParam('/a.js"', 5, 'v=1')).toBe(false)
+  })
+
+  test('終端文字を越えて次の参照の query を見に行かない', () => {
+    expect(hasQueryParam('/a.js" + "/b.js?v=1', 5, 'v=1')).toBe(false)
+  })
+
+  test('query が空文字なら false', () => {
+    expect(hasQueryParam('/a.js?v=1"', 5, '')).toBe(false)
   })
 })
 

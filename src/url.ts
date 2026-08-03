@@ -1,6 +1,19 @@
 const EXTERNAL_URL_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i
 const DATA_OR_BLOB_URL_RE = /^(?:data|blob):/i
 
+/**
+ * Characters that terminate a URL query string in built output.
+ * Built URLs live inside JS string literals, CSS url(), and HTML attributes.
+ */
+const QUERY_END_RE = /["'`\s#<>()]/
+
+/**
+ * Separates query components.
+ * Vite HTML-escapes '&' as '&amp;' inside HTML attributes, so both spellings
+ * must be accepted when scanning built output.
+ */
+const QUERY_SEPARATOR_RE = /&(?:amp;)?/
+
 /** Inserts a query before any hash fragment, choosing '&' when the URL already has one */
 function insertQuery(url: string, query: string): string {
   const hashIndex = url.indexOf('#')
@@ -48,6 +61,24 @@ function encodeQueryComponent(value: string): string {
 export function buildQuery(key: string | false, version: string): string {
   const encodedVersion = encodeQueryComponent(version)
   return key === false ? encodedVersion : `${encodeQueryComponent(key)}=${encodedVersion}`
+}
+
+/**
+ * Whether the query string starting at `index` carries `query` as a complete parameter.
+ * `index` must point at the character right after the pathname.
+ * Both separators are accepted, since insertQuery joins with '&' when the URL already has a query.
+ */
+export function hasQueryParam(text: string, index: number, query: string): boolean {
+  if (query === '') return false
+  if (text[index] !== '?') return false
+
+  let end = index + 1
+  while (end < text.length && !QUERY_END_RE.test(text[end] ?? '')) end += 1
+
+  return text
+    .slice(index + 1, end)
+    .split(QUERY_SEPARATOR_RE)
+    .includes(query)
 }
 
 /** Joins base and an output filename (equivalent to Vite's internal joinUrlSegments) */

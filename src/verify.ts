@@ -1,3 +1,5 @@
+import { hasQueryParam } from './url'
+
 export interface OutputFile {
   fileName: string
   content: string
@@ -46,7 +48,7 @@ export function findMissingQuery(
       while (index !== -1) {
         if (
           isReferenceBoundary(file.content, index, name) &&
-          !file.content.startsWith(`?${query}`, index + name.length)
+          !hasQueryParam(file.content, index + name.length, query)
         ) {
           findings.push(createFinding(file.fileName, file.content, index, name))
         }
