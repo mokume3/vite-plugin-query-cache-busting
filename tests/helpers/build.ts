@@ -8,6 +8,7 @@ import { findMissingQuery } from '../../src/verify'
 export interface BuiltFile {
   fileName: string
   content: string
+  map?: { mappings: string; sources: string[] } | null
 }
 
 const MANIFEST_SUFFIX = 'manifest.json'
@@ -48,6 +49,10 @@ export async function buildFixture(
       files.push({
         fileName: output.fileName,
         content: output.type === 'chunk' ? output.code : String(output.source),
+        map:
+          output.type === 'chunk'
+            ? ((output as { map?: { mappings: string; sources: string[] } | null }).map ?? null)
+            : null,
       })
     }
   }
