@@ -30,6 +30,16 @@ describe('basic fixture', () => {
     expect(html?.content).toMatch(/<link[^>]+href="\/assets\/[\w.-]+\.css\?v=testver"/)
   })
 
+  test('srcset のカンマ区切り両候補に query が付く', async () => {
+    const files = await buildFixture(basicRoot, { version: 'testver' })
+    const html = filesByExtension(files, '.html')[0]
+
+    expect(html?.content).toMatch(
+      /srcset="\/assets\/[\w.-]+\.svg\?v=testver, \/assets\/[\w.-]+\.svg\?v=testver 2x"/,
+    )
+    expectAllReferencesBusted(files, query)
+  })
+
   test('CSS の url() に query が付く', async () => {
     const files = await buildFixture(basicRoot, { version: 'testver' })
     const css = filesByExtension(files, '.css')

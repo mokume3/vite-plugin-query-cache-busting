@@ -108,6 +108,10 @@ describe('buildQuery', () => {
     expect(buildQuery('v', '1.0(beta)')).toBe('v=1.0%28beta%29')
   })
 
+  test("encodeURIComponent が素通しする ! ~ * ' ( ) をすべてエンコードする", () => {
+    expect(buildQuery('v', "!~*'()")).toBe('v=%21%7E%2A%27%28%29')
+  })
+
   test('key 側の記号もエンコードする', () => {
     expect(buildQuery("v'", '1')).toBe('v%27=1')
   })
@@ -141,6 +145,14 @@ describe('hasQueryParam', () => {
   test('query が空文字なら false', () => {
     expect(hasQueryParam('/a.js?v=1"', 5, '')).toBe(false)
   })
+
+  test('srcset のカンマ区切りの後ろでも検出する', () => {
+    expect(hasQueryParam('/a.svg?v=1, /b.svg 2x"', 6, 'v=1')).toBe(true)
+  })
+
+  test('CSS の url() の閉じ括弧の手前でも検出する', () => {
+    expect(hasQueryParam('.x{background:url(/a.svg?v=1)}', 24, 'v=1')).toBe(true)
+  })
 })
 
 describe('countQueryParams', () => {
@@ -158,6 +170,16 @@ describe('countQueryParams', () => {
 
   test('query が空文字なら 0', () => {
     expect(countQueryParams('"/a.js?v=1"', '')).toBe(0)
+  })
+
+  test('srcset のカンマ区切りに並ぶ3件をすべて数える', () => {
+    expect(
+      countQueryParams('<img srcset="/a.svg?v=1, /a.svg?v=1 2x" src="/a.svg?v=1">', 'v=1'),
+    ).toBe(3)
+  })
+
+  test('先頭一致でも直前に区切り文字が無ければ数えない', () => {
+    expect(countQueryParams('v=1', 'v=1')).toBe(0)
   })
 })
 
