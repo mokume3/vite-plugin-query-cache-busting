@@ -111,4 +111,19 @@ describe('findMissingQuery', () => {
     ]
     expect(findMissingQuery(files, ['assets/index.js'], 'v=1')).toHaveLength(1)
   })
+
+  test('& で連結された query は未付与とみなさない（誤検知の回帰テスト）', () => {
+    const files = [
+      {
+        fileName: 'index.html',
+        content: '<script src="https://cdn.example.com/assets/a.js?token=xyz&v=1"></script>',
+      },
+    ]
+    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toEqual([])
+  })
+
+  test('前方一致の query は未付与として検出する', () => {
+    const files = [{ fileName: 'index.html', content: '<script src="/assets/a.js?v=10"></script>' }]
+    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toHaveLength(1)
+  })
 })

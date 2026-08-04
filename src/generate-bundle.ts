@@ -1,19 +1,17 @@
+import remapping, { type SourceMapInput } from '@ampproject/remapping'
 import type { ResolvedConfig, Rollup } from 'vite'
 
 import { diagnostics } from './diagnostics'
 import { apiDriftIssue, manifestMissingIssue, nonEsFormatIssue } from './guards'
-import { formatDiagnostic, formatSummary, type Palette } from './logger'
+import { formatSummary, type Palette, throwIssue, warnIssue } from './logger'
 import { rewriteManifest, rewriteSsrManifest } from './manifest'
 import type { VerifyMode } from './options'
 import { rewriteImports } from './rewrite-imports'
+import { countQueryParams } from './url'
 import { findMissingQuery, isTrackedName, type OutputFile } from './verify'
 
 const DEFAULT_MANIFEST_FILE_NAME = '.vite/manifest.json'
 const DEFAULT_SSR_MANIFEST_FILE_NAME = '.vite/ssr-manifest.json'
-
-function throwIssue(palette: Palette, issue: Parameters<typeof formatDiagnostic>[2]): never {
-  throw new Error(formatDiagnostic(palette, 'error', issue))
-}
 
 /** Decides the target filenames to rewrite from config.build.manifest / config.build.ssrManifest */
 export function resolveManifestTarget(config: ResolvedConfig): {
@@ -62,12 +60,19 @@ export function rewriteChunkImports(
       if (output.type !== 'chunk') continue
 
       const result = rewriteImports(output.code, query, output.fileName)
-      if (result !== null) output.code = result.code
+      if (result === null) continue
+
+      output.code = result.code
+      if (output.map !== null) {
+        const composedMap = remapping(
+          [result.map as SourceMapInput, output.map as SourceMapInput],
+          () => null,
+        )
+        Object.assign(output.map, composedMap)
+      }
     }
   } else {
-    config.logger.warn(
-      formatDiagnostic(palette, 'warn', nonEsFormatIssue(String(outputOptions.format))),
-    )
+    warnIssue(palette, config.logger, nonEsFormatIssue(String(outputOptions.format)))
   }
 }
 
@@ -83,7 +88,7 @@ export function rewriteManifestOutput(
 
   const manifest = bundle[manifestFileName]
   if (manifest === undefined || manifest.type !== 'asset') {
-    throw new Error(formatDiagnostic(palette, 'error', manifestMissingIssue(manifestFileName)))
+    throwIssue(palette, manifestMissingIssue(manifestFileName))
   }
   manifest.source = rewriteManifest(String(manifest.source), query)
 }
@@ -100,7 +105,7 @@ export function rewriteSsrManifestOutput(
 
   const ssrManifest = bundle[ssrManifestFileName]
   if (ssrManifest === undefined || ssrManifest.type !== 'asset') {
-    throw new Error(formatDiagnostic(palette, 'error', manifestMissingIssue(ssrManifestFileName)))
+    throwIssue(palette, manifestMissingIssue(ssrManifestFileName))
   }
   ssrManifest.source = rewriteSsrManifest(String(ssrManifest.source), query)
 }
@@ -151,27 +156,17 @@ export function verifyOutput(
     sources: findings.map((finding) => `${finding.file}:${finding.line}:${finding.column}`),
   })
 
-  const level = verifyMode === 'error' ? 'error' : 'warn'
-  const message = formatDiagnostic(palette, level, diagnostic)
-
-  if (level === 'error') throw new Error(message)
-  config.logger.warn(message)
+  if (verifyMode === 'error') throwIssue(palette, diagnostic)
+  warnIssue(palette, config.logger, diagnostic)
 }
 
 /** Counts how many times the query appears per output file, broken down by extension */
 function countByExtension(files: OutputFile[], query: string): Record<string, number> {
   const counts: Record<string, number> = {}
-  const needle = `?${query}`
 
   for (const file of files) {
     const extension = file.fileName.slice(file.fileName.lastIndexOf('.') + 1)
-    let occurrences = 0
-    let index = file.content.indexOf(needle)
-
-    while (index !== -1) {
-      occurrences += 1
-      index = file.content.indexOf(needle, index + 1)
-    }
+    const occurrences = countQueryParams(file.content, query)
 
     if (occurrences > 0) counts[extension] = (counts[extension] ?? 0) + occurrences
   }

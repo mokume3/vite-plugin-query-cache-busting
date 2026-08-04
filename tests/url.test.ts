@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'vitest'
 
-import { appendQuery, appendQueryToBuiltUrl, buildQuery, joinUrlSegments } from '../src/url'
+import {
+  appendQuery,
+  appendQueryToBuiltUrl,
+  buildQuery,
+  countQueryParams,
+  hasQueryParam,
+  joinUrlSegments,
+} from '../src/url'
 
 describe('appendQuery', () => {
   test('クエリが無い URL には ? で連結する', () => {
@@ -95,6 +102,84 @@ describe('buildQuery', () => {
 
   test('version を URL エンコードする', () => {
     expect(buildQuery('v', 'a b')).toBe('v=a%20b')
+  })
+
+  test("encodeURIComponent が素通しする !~*'() もエンコードする", () => {
+    expect(buildQuery('v', '1.0(beta)')).toBe('v=1.0%28beta%29')
+  })
+
+  test("encodeURIComponent が素通しする ! ~ * ' ( ) をすべてエンコードする", () => {
+    expect(buildQuery('v', "!~*'()")).toBe('v=%21%7E%2A%27%28%29')
+  })
+
+  test('key 側の記号もエンコードする', () => {
+    expect(buildQuery("v'", '1')).toBe('v%27=1')
+  })
+})
+
+describe('hasQueryParam', () => {
+  test('? 直後に一致する query があれば true', () => {
+    expect(hasQueryParam('/a.js?v=1"', 5, 'v=1')).toBe(true)
+  })
+
+  test('& で連結された query も検出する', () => {
+    expect(hasQueryParam('/a.js?token=xyz&v=1"', 5, 'v=1')).toBe(true)
+  })
+
+  test('HTML エスケープされた &amp; も区切りとして扱う', () => {
+    expect(hasQueryParam('/a.js?token=xyz&amp;v=1"', 5, 'v=1')).toBe(true)
+  })
+
+  test('前方一致は一致とみなさない', () => {
+    expect(hasQueryParam('/a.js?v=10"', 5, 'v=1')).toBe(false)
+  })
+
+  test('query 文字列自体が無ければ false', () => {
+    expect(hasQueryParam('/a.js"', 5, 'v=1')).toBe(false)
+  })
+
+  test('終端文字を越えて次の参照の query を見に行かない', () => {
+    expect(hasQueryParam('/a.js" + "/b.js?v=1', 5, 'v=1')).toBe(false)
+  })
+
+  test('query が空文字なら false', () => {
+    expect(hasQueryParam('/a.js?v=1"', 5, '')).toBe(false)
+  })
+
+  test('srcset のカンマ区切りの後ろでも検出する', () => {
+    expect(hasQueryParam('/a.svg?v=1, /b.svg 2x"', 6, 'v=1')).toBe(true)
+  })
+
+  test('CSS の url() の閉じ括弧の手前でも検出する', () => {
+    expect(hasQueryParam('.x{background:url(/a.svg?v=1)}', 24, 'v=1')).toBe(true)
+  })
+})
+
+describe('countQueryParams', () => {
+  test('? 連結と & 連結の両方を数える', () => {
+    expect(countQueryParams('"/a.js?v=1" "/b.js?x=1&v=1"', 'v=1')).toBe(2)
+  })
+
+  test('HTML エスケープされた &amp; の後ろも数える', () => {
+    expect(countQueryParams('"/a.js?token=xyz&amp;v=1"', 'v=1')).toBe(1)
+  })
+
+  test('前方一致は数えない', () => {
+    expect(countQueryParams('"/a.js?v=10"', 'v=1')).toBe(0)
+  })
+
+  test('query が空文字なら 0', () => {
+    expect(countQueryParams('"/a.js?v=1"', '')).toBe(0)
+  })
+
+  test('srcset のカンマ区切りに並ぶ3件をすべて数える', () => {
+    expect(
+      countQueryParams('<img srcset="/a.svg?v=1, /a.svg?v=1 2x" src="/a.svg?v=1">', 'v=1'),
+    ).toBe(3)
+  })
+
+  test('先頭一致でも直前に区切り文字が無ければ数えない', () => {
+    expect(countQueryParams('v=1', 'v=1')).toBe(0)
   })
 })
 

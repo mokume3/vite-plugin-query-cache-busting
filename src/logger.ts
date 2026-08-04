@@ -72,3 +72,17 @@ export function formatDiagnostic(
     ),
   ].join('\n')
 }
+
+/** Throws a fatal diagnostic, formatted the same way everywhere */
+export function throwIssue(palette: Palette, issue: Diagnostic): never {
+  throw new Error(formatDiagnostic(palette, 'error', issue))
+}
+
+/** Emits a non-fatal diagnostic through the given logger */
+export function warnIssue(
+  palette: Palette,
+  logger: { warn: (message: string) => void },
+  issue: Diagnostic,
+): void {
+  logger.warn(formatDiagnostic(palette, 'warn', issue))
+}

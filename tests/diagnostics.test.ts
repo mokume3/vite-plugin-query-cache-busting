@@ -19,7 +19,7 @@ describe('diagnostics', () => {
     expect(diagnostic.message).toBe('Vite 8 or later is required (detected: 7)')
   })
 
-  test('paths 配列を渡すコードは読点で連結する', () => {
+  test('paths 配列を渡すコードは ", " で連結する', () => {
     const diagnostic = diagnostics.QCB_HASHED_FILENAME_PATTERN({
       paths: [
         'build.rollupOptions.output.entryFileNames',

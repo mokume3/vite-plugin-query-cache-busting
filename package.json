@@ -42,17 +42,19 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
+    "@ampproject/remapping": "^2.3.0",
     "ansis": "^4.3.1",
     "magic-string": "^1.1.0",
     "nostics": "^1.2.0"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.5",
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@types/node": "^26.1.2",
     "bumpp": "^12.1.1",
-    "oxfmt": "^0.61.0",
-    "oxlint": "^1.76.0",
-    "publint": "^0.3.22",
+    "oxfmt": "^0.62.0",
+    "oxlint": "^1.77.0",
+    "publint": "^0.3.23",
     "tsdown": "^0.22.14",
     "typescript": "^7.0.2",
     "vite": "^8.2.0",

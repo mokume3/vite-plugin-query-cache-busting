@@ -43,7 +43,7 @@ export const diagnostics = defineDiagnostics({
     QCB_MANIFEST_MISSING: {
       why: (p: { manifestFileName: string }) =>
         `Could not rewrite the manifest: ${p.manifestFileName} was not found in the output`,
-      fix: "Vite's manifest generation may be running after this plugin. The build was aborted because the query would otherwise be missing when integrating with a backend.",
+      fix: "Vite's manifest generation may be running after this plugin. The build was aborted because consumers of the manifest would otherwise load URLs without the query.",
     },
     QCB_HASHED_FILENAME_PATTERN: {
       why: (p: { paths: string[] }) =>
@@ -57,7 +57,7 @@ export const diagnostics = defineDiagnostics({
     },
     QCB_MULTIPLE_OUTPUTS: {
       why: 'An array build.rollupOptions.output (multiple outputs) is not supported: output is specified as an array',
-      fix: 'v1 only supports a single output. Make output a single object.',
+      fix: 'Only a single output is supported. Make output a single object.',
     },
     QCB_MISSING_QUERY: {
       why: (p: { count: number }) => `${p.count} reference(s) are missing the query`,
