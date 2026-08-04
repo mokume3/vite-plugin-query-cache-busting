@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-query-cache-busting",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Vite plugin that busts caches with a query parameter instead of a filename hash.",
   "keywords": [
     "cache",
