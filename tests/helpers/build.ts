@@ -1,3 +1,4 @@
+import type { SourceMapInput } from '@jridgewell/trace-mapping'
 import { build, mergeConfig, type InlineConfig } from 'vite'
 import { expect } from 'vitest'
 
@@ -8,7 +9,7 @@ import { findMissingQuery } from '../../src/verify'
 export interface BuiltFile {
   fileName: string
   content: string
-  map?: { mappings: string; sources: string[] } | null
+  map?: SourceMapInput | null
 }
 
 const MANIFEST_SUFFIX = 'manifest.json'
@@ -51,7 +52,7 @@ export async function buildFixture(
         content: output.type === 'chunk' ? output.code : String(output.source),
         map:
           output.type === 'chunk'
-            ? ((output as { map?: { mappings: string; sources: string[] } | null }).map ?? null)
+            ? ((output as { map?: SourceMapInput | null }).map ?? null)
             : null,
       })
     }

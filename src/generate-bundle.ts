@@ -1,3 +1,4 @@
+import remapping, { type SourceMapInput } from '@ampproject/remapping'
 import type { ResolvedConfig, Rollup } from 'vite'
 
 import { diagnostics } from './diagnostics'
@@ -59,7 +60,16 @@ export function rewriteChunkImports(
       if (output.type !== 'chunk') continue
 
       const result = rewriteImports(output.code, query, output.fileName)
-      if (result !== null) output.code = result.code
+      if (result === null) continue
+
+      output.code = result.code
+      if (output.map !== null) {
+        const composedMap = remapping(
+          [result.map as SourceMapInput, output.map as SourceMapInput],
+          () => null,
+        )
+        Object.assign(output.map, composedMap)
+      }
     }
   } else {
     warnIssue(palette, config.logger, nonEsFormatIssue(String(outputOptions.format)))
