@@ -1,4 +1,4 @@
-import MagicString from 'magic-string'
+import { MagicString } from 'magic-string'
 import { parseAst } from 'vite'
 
 import { appendQuery } from './url'

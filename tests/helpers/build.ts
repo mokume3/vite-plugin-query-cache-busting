@@ -2,7 +2,7 @@ import type { SourceMapInput } from '@jridgewell/trace-mapping'
 import { build, mergeConfig, type InlineConfig } from 'vite'
 import { expect } from 'vitest'
 
-import queryCacheBusting from '../../src'
+import { queryCacheBusting } from '../../src'
 import type { Options } from '../../src'
 import { findMissingQuery } from '../../src/verify'
 
