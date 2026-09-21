@@ -45,11 +45,11 @@ export function decideOutputFileNames(
   // 未指定時のデフォルトはバンドラのメジャーバージョンに応じて決める
   const defaultWorkerKey: WorkerOutputKey = viteMajor >= 8 ? 'rolldownOptions' : 'rollupOptions'
   const workerKey: WorkerOutputKey =
-    rolldownOutput !== undefined
-      ? 'rolldownOptions'
-      : rollupOutput !== undefined
-        ? 'rollupOptions'
-        : defaultWorkerKey
+    rolldownOutput === undefined
+      ? rollupOutput === undefined
+        ? defaultWorkerKey
+        : 'rollupOptions'
+      : 'rolldownOptions'
   const workerOut = rolldownOutput ?? rollupOutput
 
   if (Array.isArray(output) || Array.isArray(workerOut)) throwIssue(palette, multipleOutputsIssue())
