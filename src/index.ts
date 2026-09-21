@@ -40,7 +40,7 @@ function createInitialState(): PluginState {
     userRenderBuiltUrl: undefined,
     fileNames: { patch: {}, hashed: [], unverifiable: [] },
     workerFileNames: { patch: {}, hashed: [], unverifiable: [] },
-    workerKey: 'rolldownOptions',
+    workerKey: viteMajor >= 8 ? 'rolldownOptions' : 'rollupOptions',
     wrapperCalled: false,
   }
 }

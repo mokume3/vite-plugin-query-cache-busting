@@ -17,7 +17,7 @@ export const diagnostics = defineDiagnostics({
     },
     QCB_VITE_TOO_OLD: {
       why: (p: { viteMajor: number }) => `Vite 6 or later is required (detected: ${p.viteMajor})`,
-      fix: 'The assumptions behind experimental.renderBuiltUrl and the AST parser used here have only been verified for Vite 6 and later. Upgrade to Vite 6 or later.',
+      fix: 'The assumptions behind experimental.renderBuiltUrl and the AST parser used here have only been verified for Vite 6, 7, and 8. Upgrade to Vite 6 or later.',
     },
     QCB_VITE_UNVERIFIED: {
       why: (p: { viteMajor: number }) => `Vite ${p.viteMajor} is unverified`,

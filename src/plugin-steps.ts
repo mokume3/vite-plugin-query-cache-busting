@@ -41,8 +41,8 @@ export function decideOutputFileNames(
   const rolldownOutput = userConfig.worker?.rolldownOptions?.output
   const rollupOutput = userConfig.worker?.rollupOptions?.output
 
-  // Vite 8 未満(Rollup)には worker.rolldownOptions というキー自体が存在しないため、
-  // 未指定時のデフォルトはバンドラのメジャーバージョンに応じて決める
+  // worker.rolldownOptions doesn't exist below Vite 8 (Rollup-based), so the default key
+  // follows the active bundler. An explicitly configured key always wins.
   const defaultWorkerKey: WorkerOutputKey = viteMajor >= 8 ? 'rolldownOptions' : 'rollupOptions'
   const workerKey: WorkerOutputKey =
     rolldownOutput === undefined

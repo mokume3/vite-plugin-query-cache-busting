@@ -93,4 +93,14 @@ describe('rewriteImports', () => {
       'const s = "日本語のコメントああああ"\nimport("./dep.js?v=1")\n',
     )
   })
+
+  test('サロゲートペア文字を含むコードでも書き換え位置がずれない', () => {
+    // 🎉 is a surrogate pair: 2 UTF-16 code units but 1 Unicode code point,
+    // which distinguishes correct UTF-16 offset handling from a naive code-point count.
+    const code = 'const s = "🎉🎉🎉🎉"\nimport("./dep.js")\n'
+
+    expect(rewriteImports(code, 'v=1', 'chunk.js')?.code).toBe(
+      'const s = "🎉🎉🎉🎉"\nimport("./dep.js?v=1")\n',
+    )
+  })
 })

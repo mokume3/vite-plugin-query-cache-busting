@@ -109,7 +109,7 @@ The following fail at build time:
 - `@vitejs/plugin-legacy`'s SystemJS output can't have its chunk-to-chunk imports rewritten (a warning is emitted)
 - When the output filename pattern is a function, the plugin cannot statically verify whether it produces a `[hash]`-containing name (a warning is emitted)
 - With `build.sourcemap` enabled, the mapping for lines containing chunk-to-chunk imports shifts by the length of the added query. The rewrite happens in `generateBundle`, so `renderChunk`'s automatic sourcemap chaining isn't available; since debugging an import specifier itself is a rare scenario, this is documented as a limitation rather than solved
-- Since filenames carry no hash, multiple chunks sharing the same `[name]` collide. Rolldown appends a numeric suffix to avoid this, but that suffix is not guaranteed to be stable across builds
+- Since filenames carry no hash, multiple chunks sharing the same `[name]` collide. The bundler appends a numeric suffix to avoid this, but that suffix is not guaranteed to be stable across builds
 - Because deploys overwrite the same paths, a client holding an old HTML page that requests `?v=<old-version>` still receives the new file contents. This is inherent to the query-based approach and cannot be resolved by this plugin
 
 ## License

@@ -1,12 +1,14 @@
 import { fileURLToPath } from 'node:url'
 
-import { build, parseAst } from 'vite'
+import { parseSync } from 'oxc-parser'
+import { build } from 'vite'
 import { expect, test } from 'vitest'
 
 const basicRoot = fileURLToPath(new URL('./fixtures/basic', import.meta.url))
 
 test('parseAst は import 指定子を start/end 付きの Literal で返す', () => {
-  const ast = parseAst('import a from "./dep.js"\nexport * from "../other.js"\n') as unknown as {
+  const ast = parseSync('chunk.js', 'import a from "./dep.js"\nexport * from "../other.js"\n')
+    .program as unknown as {
     body: { source: { type: string; value: unknown; start: number; end: number } }[]
   }
 
