@@ -12,6 +12,22 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        vite-version: [6, 7, 8]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - name: Override installed vite version
+        if: matrix.vite-version != 8
+        run: bun add vite@${{ matrix.vite-version }} --no-save
+      - run: bun run test -- --run
+
+  check-and-build:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
