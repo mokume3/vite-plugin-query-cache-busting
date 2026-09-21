@@ -85,4 +85,12 @@ describe('rewriteImports', () => {
     expect(result?.map.mappings.length).toBeGreaterThan(0)
     expect(result?.map.sources).toContain('chunk.js')
   })
+
+  test('マルチバイト文字を含むコードでも書き換え位置がずれない', () => {
+    const code = 'const s = "日本語のコメントああああ"\nimport("./dep.js")\n'
+
+    expect(rewriteImports(code, 'v=1', 'chunk.js')?.code).toBe(
+      'const s = "日本語のコメントああああ"\nimport("./dep.js?v=1")\n',
+    )
+  })
 })

@@ -1,5 +1,5 @@
 import { MagicString } from 'magic-string'
-import { parseSync } from 'vite'
+import { parseSync } from 'oxc-parser'
 
 import { appendQuery } from './url'
 

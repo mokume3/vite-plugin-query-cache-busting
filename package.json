@@ -45,7 +45,8 @@
     "@ampproject/remapping": "^2.3.0",
     "ansis": "^4.4.0",
     "magic-string": "^1.4.1",
-    "nostics": "^1.2.0"
+    "nostics": "^1.2.0",
+    "oxc-parser": "^0.151.0"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.5",
