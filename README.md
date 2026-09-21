@@ -12,7 +12,7 @@ overwrite the same paths on every release.
 
 ## Requirements
 
-- Vite 8
+- Vite 6, 7, or 8
 
 ## Install
 

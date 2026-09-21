@@ -10,7 +10,7 @@ Vite のキャッシュバスティングを、ファイル名ハッシュ（`as
 
 ## Requirements
 
-- Vite 8
+- Vite 6, 7, 8
 
 ## Install
 
