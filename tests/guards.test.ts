@@ -60,11 +60,16 @@ describe('collectConfigIssues', () => {
     expect(errors[0]?.message).toMatch(/chunkImportMap/)
   })
 
-  test('Vite 7 以下ならエラー', () => {
-    const { errors } = collectConfigIssues({ ...supported, viteMajor: 7 })
+  test('Vite 5 以下ならエラー', () => {
+    const { errors } = collectConfigIssues({ ...supported, viteMajor: 5 })
 
     expect(errors).toHaveLength(1)
-    expect(errors[0]?.message).toMatch(/Vite 8/)
+    expect(errors[0]?.message).toMatch(/Vite 6/)
+  })
+
+  test('Vite 6/7 は対応構成として扱う(エラーにならない)', () => {
+    expect(collectConfigIssues({ ...supported, viteMajor: 6 }).errors).toEqual([])
+    expect(collectConfigIssues({ ...supported, viteMajor: 7 }).errors).toEqual([])
   })
 
   test('Vite 9 以上なら警告', () => {

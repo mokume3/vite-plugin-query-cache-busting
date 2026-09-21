@@ -31,7 +31,7 @@ function chunkImportMapIssue(chunkImportMap: boolean): Diagnostic | undefined {
 }
 
 function unsupportedViteMajorIssue(viteMajor: number): Diagnostic | undefined {
-  if (viteMajor >= 8) return undefined
+  if (viteMajor >= 6) return undefined
   return diagnostics.QCB_VITE_TOO_OLD({ viteMajor })
 }
 

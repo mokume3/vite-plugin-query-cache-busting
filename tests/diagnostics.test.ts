@@ -14,9 +14,9 @@ describe('diagnostics', () => {
   })
 
   test('関数の why はパラメータを埋め込む', () => {
-    const diagnostic = diagnostics.QCB_VITE_TOO_OLD({ viteMajor: 7 })
+    const diagnostic = diagnostics.QCB_VITE_TOO_OLD({ viteMajor: 5 })
 
-    expect(diagnostic.message).toBe('Vite 8 or later is required (detected: 7)')
+    expect(diagnostic.message).toBe('Vite 6 or later is required (detected: 5)')
   })
 
   test('paths 配列を渡すコードは ", " で連結する', () => {
