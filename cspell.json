@@ -3,7 +3,17 @@
   "ignorePaths": [],
   "dictionaryDefinitions": [],
   "dictionaries": [],
-  "words": ["ampproject", "bumpp", "jridgewell", "Mokume", "nostics", "quasis"],
+  "words": [
+    "ampproject",
+    "bumpp",
+    "jridgewell",
+    "Mokume",
+    "nostics",
+    "quasis",
+    "Renderable",
+    "xassets",
+    "YYYYMMDDH"
+  ],
   "ignoreWords": [],
   "import": []
 }
