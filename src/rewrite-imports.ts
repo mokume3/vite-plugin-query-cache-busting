@@ -1,5 +1,5 @@
-import MagicString from 'magic-string'
-import { parseAst } from 'vite'
+import { MagicString } from 'magic-string'
+import { parseSync } from 'oxc-parser'
 
 import { appendQuery } from './url'
 
@@ -47,7 +47,7 @@ export function rewriteImports(
   query: string,
   fileName: string,
 ): RewriteResult | null {
-  const ast = parseAst(code)
+  const { program: ast } = parseSync(fileName, code)
   const magicString = new MagicString(code)
   let count = 0
 

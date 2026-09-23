@@ -38,7 +38,10 @@ describe('sourcemap', () => {
     )
     const lazyChunk = findMappedLazyChunk(files)
 
-    const generatedColumn = lazyChunk.content.indexOf('var t')
+    // マイナー化後の変数名(var/const, 識別子名)は esbuild のバージョンによって
+    // 変わり得るため、識別子ではなくテンプレートリテラルの開始位置(バッククォート)
+    // を手がかりにする。この位置は元ソースの `` `lazy:${shared}` `` の開始位置と対応する。
+    const generatedColumn = lazyChunk.content.indexOf('`lazy:')
     expect(generatedColumn).toBeGreaterThanOrEqual(0)
 
     const original = originalPositionFor(new TraceMap(lazyChunk.map), {
@@ -48,7 +51,7 @@ describe('sourcemap', () => {
     expect(original).toMatchObject({
       source: '../../src/lazy.ts',
       line: 4,
-      column: 0,
+      column: 25,
     })
   })
 })

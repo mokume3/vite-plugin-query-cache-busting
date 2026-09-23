@@ -1,9 +1,11 @@
 import { Ansis } from 'ansis'
 import type { Plugin, ResolvedConfig, Rollup, UserConfig } from 'vite'
+import { version as viteVersion } from 'vite'
 
 import { PLUGIN_NAME } from './constants'
 import type { FileNamesDecision } from './file-names'
 import { runGenerateBundleStep } from './generate-bundle'
+import { parseMajor } from './guards'
 import { createPalette, type Palette } from './logger'
 import { normalizeOptions, type Options, type ResolvedOptions } from './options'
 import {
@@ -17,6 +19,8 @@ import { buildQuery } from './url'
 import { resolveVersion } from './version'
 
 export type { Options, VerifyMode } from './options'
+
+const viteMajor = parseMajor(viteVersion)
 
 interface PluginState {
   query: string
@@ -36,7 +40,7 @@ function createInitialState(): PluginState {
     userRenderBuiltUrl: undefined,
     fileNames: { patch: {}, hashed: [], unverifiable: [] },
     workerFileNames: { patch: {}, hashed: [], unverifiable: [] },
-    workerKey: 'rolldownOptions',
+    workerKey: viteMajor >= 8 ? 'rolldownOptions' : 'rollupOptions',
     wrapperCalled: false,
   }
 }
@@ -52,7 +56,7 @@ async function handleConfig(
   state.userRenderBuiltUrl = userConfig.experimental?.renderBuiltUrl
   state.query = buildQuery(resolved.key, await resolveVersion(resolved.version))
 
-  const decided = decideOutputFileNames(palette, userConfig)
+  const decided = decideOutputFileNames(palette, userConfig, viteMajor)
   state.fileNames = decided.fileNames
   state.workerFileNames = decided.workerFileNames
   state.workerKey = decided.workerKey
@@ -79,6 +83,7 @@ function handleConfigResolved(
     state.fileNames,
     state.workerFileNames,
     state.workerKey,
+    viteMajor,
   )
 }
 

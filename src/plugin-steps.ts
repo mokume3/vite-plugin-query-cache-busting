@@ -1,5 +1,4 @@
 import type { ResolvedConfig, UserConfig } from 'vite'
-import { version as viteVersion } from 'vite'
 
 import { decideFileNames, type FileNamesDecision, type OutputFileNames } from './file-names'
 import {
@@ -7,7 +6,6 @@ import {
   hashedFileNamePatternIssue,
   hijackedRenderBuiltUrlIssue,
   multipleOutputsIssue,
-  parseMajor,
   unverifiableFileNamePatternIssue,
   userHookReturnedObjectIssue,
 } from './guards'
@@ -25,6 +23,7 @@ export type WorkerOutputKey = 'rollupOptions' | 'rolldownOptions'
 export function decideOutputFileNames(
   palette: Palette,
   userConfig: UserConfig,
+  viteMajor: number,
 ): {
   fileNames: FileNamesDecision
   workerFileNames: FileNamesDecision
@@ -42,9 +41,15 @@ export function decideOutputFileNames(
   const rolldownOutput = userConfig.worker?.rolldownOptions?.output
   const rollupOutput = userConfig.worker?.rollupOptions?.output
 
-  // If only the deprecated rollupOptions has an output, write back to that instead
+  // worker.rolldownOptions doesn't exist below Vite 8 (Rollup-based), so the default key
+  // follows the active bundler. An explicitly configured key always wins.
+  const defaultWorkerKey: WorkerOutputKey = viteMajor >= 8 ? 'rolldownOptions' : 'rollupOptions'
   const workerKey: WorkerOutputKey =
-    rolldownOutput === undefined && rollupOutput !== undefined ? 'rollupOptions' : 'rolldownOptions'
+    rolldownOutput === undefined
+      ? rollupOutput === undefined
+        ? defaultWorkerKey
+        : 'rollupOptions'
+      : 'rolldownOptions'
   const workerOut = rolldownOutput ?? rollupOutput
 
   if (Array.isArray(output) || Array.isArray(workerOut)) throwIssue(palette, multipleOutputsIssue())
@@ -86,12 +91,13 @@ export function applyResolvedConfigIssues(
   fileNames: FileNamesDecision,
   workerFileNames: FileNamesDecision,
   workerKey: WorkerOutputKey,
+  viteMajor: number,
 ): void {
   const { errors, warnings } = collectConfigIssues({
     base: resolvedConfig.base,
     isLib: Boolean(resolvedConfig.build.lib),
     chunkImportMap: Boolean((resolvedConfig.build as { chunkImportMap?: unknown }).chunkImportMap),
-    viteMajor: parseMajor(viteVersion),
+    viteMajor,
   })
 
   if (resolvedConfig.experimental.renderBuiltUrl !== renderBuiltUrl) {

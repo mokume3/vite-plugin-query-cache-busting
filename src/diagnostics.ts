@@ -16,12 +16,12 @@ export const diagnostics = defineDiagnostics({
       fix: 'Vite itself does not support combining build.chunkImportMap with experimental.renderBuiltUrl. Disable one of the two.',
     },
     QCB_VITE_TOO_OLD: {
-      why: (p: { viteMajor: number }) => `Vite 8 or later is required (detected: ${p.viteMajor})`,
-      fix: 'The assumptions behind experimental.renderBuiltUrl and parseAst do not hold below Vite 8. Upgrade to Vite 8 or later.',
+      why: (p: { viteMajor: number }) => `Vite 6 or later is required (detected: ${p.viteMajor})`,
+      fix: 'The assumptions behind experimental.renderBuiltUrl and the AST parser used here have only been verified for Vite 6, 7, and 8. Upgrade to Vite 6 or later.',
     },
     QCB_VITE_UNVERIFIED: {
       why: (p: { viteMajor: number }) => `Vite ${p.viteMajor} is unverified`,
-      fix: 'This plugin has only been verified against Vite 8. Check that no verify warnings appear after the build.',
+      fix: 'This plugin has been verified against Vite 6, 7, and 8. Check that no verify warnings appear after the build.',
     },
     QCB_RENDER_BUILT_URL_HIJACKED: {
       why: "experimental.renderBuiltUrl has been overridden by another plugin: the resolved config value is not this plugin's wrapper",

@@ -40,6 +40,8 @@ query を付与する対象は **Vite がデフォルトでファイル名ハッ
 
 **対応バージョン**: Vite 8 のみ（`peerDependencies: { vite: "^8.0.0" }`）。Vite 8 のバンドラは Rolldown であり、本設計は Rolldown の出力形式に依存する。Vite 6/7（Rollup）は対象外。
 
+> **2026-09-21 更新**: この決定は `2026-09-21-multi-bundler-support-design.md` で改定され、Vite 6/7（Rollup）にも対応した。詳細は同ドキュメントを参照。
+
 ## 4. 公開 API
 
 パッケージ名: `vite-plugin-query-cache-busting`
@@ -383,6 +385,8 @@ JS 文字列を直接入力して出力をアサートする。
 **正規表現による一括置換（案3）**: 依存ゼロで数十行に収まるが、コメント内や無関係な文字列内も置換され、ミニファイ済みコードで誤爆が読みにくい形で表面化する。公開プラグインとしては採用しない。ただし「検出のみ」の用途では誤検出のコストが警告に留まるため、verify パス（7.3）で同等の仕組みを使う。
 
 **`oxc-parser` を直接の依存に追加**: Vite 8 が `parseAst` / `parseAstAsync`（実体は Rolldown 同梱の oxc）を re-export しているため不要。直接依存させると oxc のネイティブバイナリが二重に入り、Vite/Rolldown 側とのバージョンずれが起こり得る。
+
+> **2026-09-21 更新**: Vite 6/7（Rollup）対応にあたり、この却下判断は覆した。Rollup 系には Vite が同梱する oxc パーサーが存在しないため、「re-exportで足りる」という前提が崩れたため。詳細は `2026-09-21-multi-bundler-support-design.md` を参照。
 
 ## 15. 調査で確認した事実
 
