@@ -1,6 +1,7 @@
 import { MagicString } from 'magic-string'
 import { parseSync } from 'oxc-parser'
 
+import { isRecord } from './guards'
 import { appendQuery } from './url'
 
 interface AstNode {
@@ -77,40 +78,41 @@ export function rewriteImports(
   }
 }
 
-/** Walks the entire AST, visiting every node that has a type */
+/** Walks the entire AST, visiting every node that has a type and a position */
 function walk(node: unknown, visit: (node: AstNode) => void): void {
-  if (node === null || typeof node !== 'object') return
-
   if (Array.isArray(node)) {
     for (const child of node) walk(child, visit)
     return
   }
 
-  const record = node as Record<string, unknown>
-  if (typeof record.type === 'string') visit(record as AstNode)
+  if (!isRecord(node)) return
+  if (isAstNode(node)) visit(node)
 
-  for (const key of Object.keys(record)) {
+  for (const key of Object.keys(node)) {
     if (SKIPPED_KEYS.has(key)) continue
-    walk(record[key], visit)
+    walk(node[key], visit)
   }
 }
 
-function isStringLiteral(node: unknown): node is StringLiteralNode {
-  if (node === null || typeof node !== 'object') return false
+function isAstNode(node: unknown): node is AstNode {
+  return (
+    isRecord(node) &&
+    typeof node.type === 'string' &&
+    typeof node.start === 'number' &&
+    typeof node.end === 'number'
+  )
+}
 
-  const record = node as Record<string, unknown>
-  return record.type === 'Literal' && typeof record.value === 'string'
+function isStringLiteral(node: unknown): node is StringLiteralNode {
+  return isAstNode(node) && node.type === 'Literal' && typeof node.value === 'string'
 }
 
 /** Whether this is a no-substitution TemplateLiteral (import()'s argument takes this form after minify) */
 function isStaticTemplateLiteral(node: unknown): node is StaticTemplateLiteralNode {
-  if (node === null || typeof node !== 'object') return false
+  if (!isAstNode(node) || node.type !== 'TemplateLiteral') return false
 
-  const record = node as Record<string, unknown>
-  if (record.type !== 'TemplateLiteral') return false
-
-  const expressions = record.expressions
-  const quasis = record.quasis
+  const expressions = node.expressions
+  const quasis = node.quasis
   return Array.isArray(expressions) && expressions.length === 0 && Array.isArray(quasis)
 }
 

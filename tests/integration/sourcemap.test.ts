@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url'
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping'
 import { describe, expect, test } from 'vitest'
 
-import { buildFixture, type BuiltFile } from '../helpers/build'
+import { buildFixture } from '../helpers/build'
+import type { BuiltFile } from '../helpers/build'
 
 const basicRoot = fileURLToPath(new URL('../fixtures/basic', import.meta.url))
 

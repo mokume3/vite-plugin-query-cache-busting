@@ -9,6 +9,11 @@ export interface ConfigSnapshot {
   viteMajor: number
 }
 
+/** Whether the value is a plain object (not null or an array) whose properties can be inspected */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /** Extracts the major version from a version string. Returns 0 if it can't be parsed */
 export function parseMajor(version: string): number {
   const major = Number.parseInt(version.split('.')[0] ?? '', 10)

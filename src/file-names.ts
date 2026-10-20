@@ -38,7 +38,7 @@ export function buildFileNames(assetsDir: string): OutputFileNames {
  * along with the inspection results. Keys the user explicitly configured are respected and never overwritten.
  */
 export function decideFileNames(
-  userOutput: Record<string, unknown>,
+  userOutput: Partial<Record<keyof OutputFileNames, unknown>>,
   assetsDir: string,
 ): FileNamesDecision {
   const defaults = buildFileNames(assetsDir)

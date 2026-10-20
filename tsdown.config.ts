@@ -1,6 +1,8 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
+  // tsconfig.json はテストも含めた型チェック用。ビルド（dts 生成）は src だけを対象にする
+  tsconfig: 'tsconfig.build.json',
   dts: {
     generator: 'tsgo',
   },

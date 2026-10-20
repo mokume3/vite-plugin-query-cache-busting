@@ -2,19 +2,16 @@ import { Ansis } from 'ansis'
 import type { Plugin, ResolvedConfig, Rollup, UserConfig } from 'vite'
 import { version as viteVersion } from 'vite'
 
-import { PLUGIN_NAME } from './constants'
+import { LOG_PREFIX, PLUGIN_NAME } from './constants'
 import type { FileNamesDecision } from './file-names'
 import { runGenerateBundleStep } from './generate-bundle'
 import { parseMajor } from './guards'
-import { createPalette, type Palette } from './logger'
-import { normalizeOptions, type Options, type ResolvedOptions } from './options'
-import {
-  applyResolvedConfigIssues,
-  decideOutputFileNames,
-  type RenderBuiltUrl,
-  resolveBuiltUrl,
-  type WorkerOutputKey,
-} from './plugin-steps'
+import { createPalette } from './logger'
+import type { Palette } from './logger'
+import { normalizeOptions } from './options'
+import type { Options, ResolvedOptions } from './options'
+import { applyResolvedConfigIssues, decideOutputFileNames, resolveBuiltUrl } from './plugin-steps'
+import type { RenderBuiltUrl, WorkerOutputKey } from './plugin-steps'
 import { buildQuery } from './url'
 import { resolveVersion } from './version'
 
@@ -24,7 +21,8 @@ const viteMajor = parseMajor(viteVersion)
 
 interface PluginState {
   query: string
-  config: ResolvedConfig
+  /** Set by configResolved */
+  config: ResolvedConfig | undefined
   userRenderBuiltUrl: RenderBuiltUrl | undefined
   fileNames: FileNamesDecision
   workerFileNames: FileNamesDecision
@@ -35,14 +33,21 @@ interface PluginState {
 function createInitialState(): PluginState {
   return {
     query: '',
-    // Assumes this is never read before configResolved (relies on Vite's hook call order).
-    config: undefined as unknown as ResolvedConfig,
+    config: undefined,
     userRenderBuiltUrl: undefined,
     fileNames: { patch: {}, hashed: [], unverifiable: [] },
     workerFileNames: { patch: {}, hashed: [], unverifiable: [] },
     workerKey: viteMajor >= 8 ? 'rolldownOptions' : 'rollupOptions',
     wrapperCalled: false,
   }
+}
+
+/** Returns the config stored by configResolved, which Vite always calls before generateBundle / renderBuiltUrl */
+function requireResolvedConfig(state: PluginState): ResolvedConfig {
+  if (state.config === undefined) {
+    throw new Error(`${LOG_PREFIX} the resolved config was read before the configResolved hook ran`)
+  }
+  return state.config
 }
 
 /** Body of the config hook. Resolves the query and decides the output filename patch, storing both in state for the next hook */
@@ -97,7 +102,7 @@ function handleGenerateBundle(
 ): void {
   runGenerateBundleStep(
     palette,
-    state.config,
+    requireResolvedConfig(state),
     verifyMode,
     outputOptions,
     bundle,
@@ -115,7 +120,7 @@ export function queryCacheBusting(options: Options = {}): Plugin {
     state.wrapperCalled = true
     return resolveBuiltUrl(
       palette,
-      state.config,
+      requireResolvedConfig(state),
       state.userRenderBuiltUrl,
       state.query,
       filename,
@@ -130,8 +135,9 @@ export function queryCacheBusting(options: Options = {}): Plugin {
 
     config: (userConfig) => handleConfig(state, palette, resolved, renderBuiltUrl, userConfig),
 
-    configResolved: (resolvedConfig) =>
-      handleConfigResolved(state, palette, renderBuiltUrl, resolvedConfig),
+    configResolved: (resolvedConfig) => {
+      handleConfigResolved(state, palette, renderBuiltUrl, resolvedConfig)
+    },
 
     // order: 'post' because import rewriting must happen after
     // vite:build-import-analysis resolves the __vitePreload dependency array

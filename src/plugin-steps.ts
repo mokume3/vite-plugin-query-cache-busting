@@ -1,6 +1,7 @@
 import type { ResolvedConfig, UserConfig } from 'vite'
 
-import { decideFileNames, type FileNamesDecision, type OutputFileNames } from './file-names'
+import { decideFileNames } from './file-names'
+import type { FileNamesDecision, OutputFileNames } from './file-names'
 import {
   collectConfigIssues,
   hashedFileNamePatternIssue,
@@ -9,7 +10,8 @@ import {
   unverifiableFileNamePatternIssue,
   userHookReturnedObjectIssue,
 } from './guards'
-import { formatDiagnostic, type Palette, throwIssue, warnIssue } from './logger'
+import { formatDiagnostic, throwIssue, warnIssue } from './logger'
+import type { Palette } from './logger'
 import { appendQueryToBuiltUrl, joinUrlSegments } from './url'
 
 export type RenderBuiltUrl = NonNullable<NonNullable<UserConfig['experimental']>['renderBuiltUrl']>
@@ -18,6 +20,21 @@ type RenderBuiltUrlContext = Parameters<RenderBuiltUrl>[1]
 const DEFAULT_ASSETS_DIR = 'assets'
 
 export type WorkerOutputKey = 'rollupOptions' | 'rolldownOptions'
+
+/**
+ * Decides which worker option key to patch. An explicitly configured key always wins;
+ * otherwise it follows the active bundler, since worker.rolldownOptions doesn't exist
+ * below Vite 8 (Rollup-based).
+ */
+function decideWorkerKey(
+  hasRolldownOutput: boolean,
+  hasRollupOutput: boolean,
+  viteMajor: number,
+): WorkerOutputKey {
+  if (hasRolldownOutput) return 'rolldownOptions'
+  if (hasRollupOutput) return 'rollupOptions'
+  return viteMajor >= 8 ? 'rolldownOptions' : 'rollupOptions'
+}
 
 /** Decides the environments.client/worker patch returned by the config hook, along with fileNames/workerFileNames for later use */
 export function decideOutputFileNames(
@@ -35,27 +52,27 @@ export function decideOutputFileNames(
   // SSR is out of scope for this plugin. Patching build.rollupOptions.output unconditionally
   // would also affect SSR builds that don't inherit environments.client, so this only
   // writes to the client environment.
+  // rollupOptions is the only key on Vite 6/7 and an alias of rolldownOptions on Vite 8,
+  // so reading it covers every supported version despite the deprecation.
+  /* oxlint-disable typescript/no-deprecated */
   const output =
     userConfig.environments?.client?.build?.rollupOptions?.output ??
     userConfig.build?.rollupOptions?.output
   const rolldownOutput = userConfig.worker?.rolldownOptions?.output
   const rollupOutput = userConfig.worker?.rollupOptions?.output
+  /* oxlint-enable typescript/no-deprecated */
 
-  // worker.rolldownOptions doesn't exist below Vite 8 (Rollup-based), so the default key
-  // follows the active bundler. An explicitly configured key always wins.
-  const defaultWorkerKey: WorkerOutputKey = viteMajor >= 8 ? 'rolldownOptions' : 'rollupOptions'
-  const workerKey: WorkerOutputKey =
-    rolldownOutput === undefined
-      ? rollupOutput === undefined
-        ? defaultWorkerKey
-        : 'rollupOptions'
-      : 'rolldownOptions'
+  const workerKey = decideWorkerKey(
+    rolldownOutput !== undefined,
+    rollupOutput !== undefined,
+    viteMajor,
+  )
   const workerOut = rolldownOutput ?? rollupOutput
 
   if (Array.isArray(output) || Array.isArray(workerOut)) throwIssue(palette, multipleOutputsIssue())
 
-  const fileNames = decideFileNames((output ?? {}) as Record<string, unknown>, assetsDir)
-  const workerFileNames = decideFileNames((workerOut ?? {}) as Record<string, unknown>, assetsDir)
+  const fileNames = decideFileNames(output ?? {}, assetsDir)
+  const workerFileNames = decideFileNames(workerOut ?? {}, assetsDir)
 
   return {
     fileNames,
