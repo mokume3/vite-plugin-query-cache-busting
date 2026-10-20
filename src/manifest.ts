@@ -1,3 +1,4 @@
+import { isRecord } from './guards'
 import { appendQuery } from './url'
 
 const PATH_ARRAY_FIELDS = ['css', 'assets'] as const
@@ -7,9 +8,12 @@ const PATH_ARRAY_FIELDS = ['css', 'assets'] as const
  * imports / dynamicImports are manifest keys, not paths, so they're left untouched.
  */
 export function rewriteManifest(source: string, query: string): string {
-  const manifest = JSON.parse(source) as Record<string, Record<string, unknown>>
+  const manifest: unknown = JSON.parse(source)
+  if (!isRecord(manifest)) return source
 
   for (const entry of Object.values(manifest)) {
+    if (!isRecord(entry)) continue
+
     if (typeof entry.file === 'string') {
       entry.file = appendQuery(entry.file, query)
     }
@@ -18,7 +22,7 @@ export function rewriteManifest(source: string, query: string): string {
       const value = entry[field]
       if (!Array.isArray(value)) continue
 
-      entry[field] = value.map((item) =>
+      entry[field] = value.map((item: unknown) =>
         typeof item === 'string' ? appendQuery(item, query) : item,
       )
     }
@@ -32,13 +36,14 @@ export function rewriteManifest(source: string, query: string): string {
  * Keys are module IDs (internal IDs that may contain a NUL character), not paths, so they're left untouched.
  */
 export function rewriteSsrManifest(source: string, query: string): string {
-  const manifest = JSON.parse(source) as Record<string, unknown>
+  const manifest: unknown = JSON.parse(source)
+  if (!isRecord(manifest)) return source
 
   for (const key of Object.keys(manifest)) {
     const value = manifest[key]
     if (!Array.isArray(value)) continue
 
-    manifest[key] = value.map((item) =>
+    manifest[key] = value.map((item: unknown) =>
       typeof item === 'string' ? appendQuery(item, query) : item,
     )
   }

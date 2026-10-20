@@ -1,14 +1,18 @@
-import remapping, { type SourceMapInput } from '@ampproject/remapping'
+import remapping from '@ampproject/remapping'
+import type { SourceMapInput } from '@ampproject/remapping'
 import type { ResolvedConfig, Rollup } from 'vite'
 
 import { diagnostics } from './diagnostics'
 import { apiDriftIssue, manifestMissingIssue, nonEsFormatIssue } from './guards'
-import { formatSummary, type Palette, throwIssue, warnIssue } from './logger'
+import { formatSummary, throwIssue, warnIssue } from './logger'
+import type { Palette } from './logger'
 import { rewriteManifest, rewriteSsrManifest } from './manifest'
 import type { VerifyMode } from './options'
+import type { RewriteResult } from './rewrite-imports'
 import { rewriteImports } from './rewrite-imports'
 import { countQueryParams } from './url'
-import { findMissingQuery, isTrackedName, type OutputFile } from './verify'
+import { findMissingQuery, isTrackedName } from './verify'
+import type { OutputFile } from './verify'
 
 const DEFAULT_MANIFEST_FILE_NAME = '.vite/manifest.json'
 const DEFAULT_SSR_MANIFEST_FILE_NAME = '.vite/ssr-manifest.json'
@@ -47,6 +51,20 @@ export function detectApiDrift(
   if (!wrapperCalled && hasRenderableAssets) throwIssue(palette, apiDriftIssue())
 }
 
+/**
+ * Converts a magic-string / Rollup source map to remapping's input type.
+ * Both always emit v3 maps; their types merely declare `version: number` and allow explicit `undefined`.
+ */
+function toSourceMapInput(map: Rollup.SourceMap | RewriteResult['map']): SourceMapInput {
+  const { file, sourcesContent, ...rest } = map
+  return {
+    ...rest,
+    version: 3,
+    ...(file === undefined ? {} : { file }),
+    ...(sourcesContent === undefined ? {} : { sourcesContent }),
+  }
+}
+
 /** Rewrites chunk-to-chunk import specifiers to include the query, but only for ES-format output */
 export function rewriteChunkImports(
   palette: Palette,
@@ -65,14 +83,14 @@ export function rewriteChunkImports(
       output.code = result.code
       if (output.map !== null) {
         const composedMap = remapping(
-          [result.map as SourceMapInput, output.map as SourceMapInput],
+          [toSourceMapInput(result.map), toSourceMapInput(output.map)],
           () => null,
         )
         Object.assign(output.map, composedMap)
       }
     }
   } else {
-    warnIssue(palette, config.logger, nonEsFormatIssue(String(outputOptions.format)))
+    warnIssue(palette, config.logger, nonEsFormatIssue(outputOptions.format))
   }
 }
 
@@ -110,6 +128,12 @@ export function rewriteSsrManifestOutput(
   ssrManifest.source = rewriteSsrManifest(String(ssrManifest.source), query)
 }
 
+/** Text content of an output file, or null for a binary asset */
+function textContentOf(output: Rollup.OutputBundle[string]): string | null {
+  if (output.type === 'chunk') return output.code
+  return typeof output.source === 'string' ? output.source : null
+}
+
 /** Collects output files and reference names (excluding the manifests) for verify and the summary log */
 export function collectOutputFiles(
   bundle: Rollup.OutputBundle,
@@ -124,13 +148,7 @@ export function collectOutputFiles(
 
     referenceNames.push(output.fileName)
 
-    const content =
-      output.type === 'chunk'
-        ? output.code
-        : typeof output.source === 'string'
-          ? output.source
-          : null
-
+    const content = textContentOf(output)
     if (content !== null) files.push({ fileName: output.fileName, content })
   }
 

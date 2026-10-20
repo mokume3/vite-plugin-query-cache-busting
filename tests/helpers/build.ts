@@ -1,5 +1,6 @@
 import type { SourceMapInput } from '@jridgewell/trace-mapping'
-import { build, mergeConfig, type InlineConfig } from 'vite'
+import { build, mergeConfig } from 'vite'
+import type { InlineConfig } from 'vite'
 import { expect } from 'vitest'
 
 import { queryCacheBusting } from '../../src'

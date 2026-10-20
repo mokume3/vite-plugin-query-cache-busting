@@ -60,7 +60,7 @@ const EXTRA_ENCODE_RE = /[!~*'()]/g
  * query within the QUERY_VALUE_CHAR_RE set that hasQueryParam and countQueryParams rely on.
  */
 function encodeQueryComponent(value: string): string {
-  return encodeURIComponent(value).replace(
+  return encodeURIComponent(value).replaceAll(
     EXTRA_ENCODE_RE,
     (char) => `%${char.codePointAt(0)?.toString(16).toUpperCase()}`,
   )
