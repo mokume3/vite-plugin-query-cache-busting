@@ -18,7 +18,7 @@ describe('containsHashPlaceholder', () => {
 
 describe('buildFileNames', () => {
   test('assetsDir を前置したパターンを返す', () => {
-    expect(buildFileNames('assets')).toEqual({
+    expect(buildFileNames('assets')).toStrictEqual({
       entryFileNames: 'assets/[name].js',
       chunkFileNames: 'assets/[name].js',
       assetFileNames: 'assets/[name].[ext]',
@@ -26,7 +26,7 @@ describe('buildFileNames', () => {
   })
 
   test('assetsDir が空なら前置しない', () => {
-    expect(buildFileNames('')).toEqual({
+    expect(buildFileNames('')).toStrictEqual({
       entryFileNames: '[name].js',
       chunkFileNames: '[name].js',
       assetFileNames: '[name].[ext]',
@@ -42,9 +42,9 @@ describe('decideFileNames', () => {
   test('利用者指定が無ければ3つとも埋める', () => {
     const decision = decideFileNames({}, 'assets')
 
-    expect(decision.patch).toEqual(buildFileNames('assets'))
-    expect(decision.hashed).toEqual([])
-    expect(decision.unverifiable).toEqual([])
+    expect(decision.patch).toStrictEqual(buildFileNames('assets'))
+    expect(decision.hashed).toStrictEqual([])
+    expect(decision.unverifiable).toStrictEqual([])
   })
 
   test('利用者が指定したキーは patch に含めず、他のキーだけ埋める', () => {
@@ -52,20 +52,20 @@ describe('decideFileNames', () => {
 
     expect(decision.patch.entryFileNames).toBeUndefined()
     expect(decision.patch.chunkFileNames).toBe('assets/[name].js')
-    expect(decision.hashed).toEqual([])
+    expect(decision.hashed).toStrictEqual([])
   })
 
   test('利用者指定に [hash] があれば hashed に入れる', () => {
     const decision = decideFileNames({ entryFileNames: 'js/[name]-[hash].js' }, 'assets')
 
-    expect(decision.hashed).toEqual(['entryFileNames'])
+    expect(decision.hashed).toStrictEqual(['entryFileNames'])
     expect(decision.patch.entryFileNames).toBeUndefined()
   })
 
   test('関数で指定されたキーは unverifiable に入れる', () => {
     const decision = decideFileNames({ assetFileNames: () => 'x' }, 'assets')
 
-    expect(decision.unverifiable).toEqual(['assetFileNames'])
+    expect(decision.unverifiable).toStrictEqual(['assetFileNames'])
     expect(decision.patch.assetFileNames).toBeUndefined()
   })
 
@@ -75,6 +75,6 @@ describe('decideFileNames', () => {
       'assets',
     )
 
-    expect(decision.hashed).toEqual(['entryFileNames', 'chunkFileNames'])
+    expect(decision.hashed).toStrictEqual(['entryFileNames', 'chunkFileNames'])
   })
 })

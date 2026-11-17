@@ -38,7 +38,8 @@
 
     "vitest/consistent-test-it": ["error", { "fn": "test", "withinDescribe": "test" }],
     "vitest/no-identical-title": "error",
-    "vitest/prefer-hooks-on-top": "error"
+    "vitest/prefer-hooks-on-top": "error",
+    "vitest/prefer-strict-equal": "error"
   },
   "overrides": [
     {

@@ -67,7 +67,7 @@ export function expectAllReferencesBusted(files: BuiltFile[], query: string): vo
   const scanned = files.filter((file) => !file.fileName.endsWith(MANIFEST_SUFFIX))
   const names = scanned.map((file) => file.fileName)
 
-  expect(findMissingQuery(scanned, names, query)).toEqual([])
+  expect(findMissingQuery(scanned, names, query)).toStrictEqual([])
 }
 
 /** 拡張子で出力ファイルを絞り込む */

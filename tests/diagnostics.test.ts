@@ -39,7 +39,10 @@ describe('diagnostics', () => {
     })
 
     expect(diagnostic.message).toBe('2 reference(s) are missing the query')
-    expect(diagnostic.sources).toEqual(['assets/index.js:1:2043', 'assets/manifest.json:1:88'])
+    expect(diagnostic.sources).toStrictEqual([
+      'assets/index.js:1:2043',
+      'assets/manifest.json:1:88',
+    ])
   })
 
   test('docsBase を設定していないので docs は undefined', () => {

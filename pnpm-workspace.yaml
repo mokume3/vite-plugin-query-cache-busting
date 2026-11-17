@@ -1,0 +1,8 @@
+allowBuilds:
+  # CI で vite 6 / 7 を差し込むと入る。postinstall はバイナリの検証だけで、
+  # 本体は optionalDependencies のプラットフォーム別パッケージから入るため実行不要
+  esbuild: false
+
+lockfile:
+  # pnpm 13 で既定になる予定の新形式（pnpm 12 時点では実験的）
+  format: v13

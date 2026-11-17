@@ -22,8 +22,8 @@ describe('rewriteManifest', () => {
     })
     const entry = parse(rewriteManifest(source, 'v=1'))['src/main.ts']
 
-    expect(entry?.css).toEqual(['assets/main.css?v=1'])
-    expect(entry?.assets).toEqual(['assets/logo.svg?v=1'])
+    expect(entry?.css).toStrictEqual(['assets/main.css?v=1'])
+    expect(entry?.assets).toStrictEqual(['assets/logo.svg?v=1'])
   })
 
   test('imports と dynamicImports は書き換えない（manifest のキーであってパスではない）', () => {
@@ -36,8 +36,8 @@ describe('rewriteManifest', () => {
     })
     const entry = parse(rewriteManifest(source, 'v=1'))['src/main.ts']
 
-    expect(entry?.imports).toEqual(['_shared.js'])
-    expect(entry?.dynamicImports).toEqual(['src/lazy.ts'])
+    expect(entry?.imports).toStrictEqual(['_shared.js'])
+    expect(entry?.dynamicImports).toStrictEqual(['src/lazy.ts'])
   })
 
   test('src とその他のフィールドは書き換えない', () => {
@@ -73,14 +73,14 @@ describe('rewriteSsrManifest', () => {
     const source = JSON.stringify({ 'src/lazy.css': ['/assets/lazy.js', '/assets/lazy.css'] })
     const manifest = JSON.parse(rewriteSsrManifest(source, 'v=1')) as Record<string, string[]>
 
-    expect(manifest['src/lazy.css']).toEqual(['/assets/lazy.js?v=1', '/assets/lazy.css?v=1'])
+    expect(manifest['src/lazy.css']).toStrictEqual(['/assets/lazy.js?v=1', '/assets/lazy.css?v=1'])
   })
 
   test('キー（モジュール ID）は書き換えない', () => {
     const source = JSON.stringify({ 'lazy.js': ['/assets/lazy.css'] })
     const manifest = JSON.parse(rewriteSsrManifest(source, 'v=1')) as Record<string, unknown>
 
-    expect(Object.keys(manifest)).toEqual(['lazy.js'])
+    expect(Object.keys(manifest)).toStrictEqual(['lazy.js'])
   })
 
   test('NUL 文字を含む内部 ID のキーが壊れない', () => {
@@ -88,7 +88,7 @@ describe('rewriteSsrManifest', () => {
     const source = JSON.stringify({ [key]: ['/assets/polyfill.js'] })
     const manifest = JSON.parse(rewriteSsrManifest(source, 'v=1')) as Record<string, string[]>
 
-    expect(manifest[key]).toEqual(['/assets/polyfill.js?v=1'])
+    expect(manifest[key]).toStrictEqual(['/assets/polyfill.js?v=1'])
   })
 
   test('値が配列でなければそのまま返す', () => {
@@ -102,7 +102,7 @@ describe('rewriteSsrManifest', () => {
     const source = JSON.stringify({ 'src/main.ts': ['/assets/a.js', 1] })
     const manifest = JSON.parse(rewriteSsrManifest(source, 'v=1')) as Record<string, unknown[]>
 
-    expect(manifest['src/main.ts']).toEqual(['/assets/a.js?v=1', 1])
+    expect(manifest['src/main.ts']).toStrictEqual(['/assets/a.js?v=1', 1])
   })
 
   test('2 スペースインデントの JSON を返す', () => {

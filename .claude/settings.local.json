@@ -5,10 +5,10 @@
       "Bash(./node_modules/.bin/oxlint src *)",
       "Bash(echo \"exit with error = $?\")",
       "Bash(echo \"exit when clean = $?\")",
-      "Bash(bun run *)",
-      "Bash(bunx oxfmt *)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm exec oxfmt *)",
       "Bash(echo \"format:check exit = $?\")",
-      "Bash(bunx oxlint *)",
+      "Bash(pnpm exec oxlint *)",
       "Bash(echo \"lint exit = $?\")",
       "Bash(cd /Users/mokume/Development/vite-plugin-query-cache-busting *)"
     ]

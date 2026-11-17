@@ -30,7 +30,7 @@ describe('isTrackedName', () => {
 describe('findMissingQuery', () => {
   test('query が付いていれば検出しない', () => {
     const files = [{ fileName: 'index.html', content: '<script src="/assets/a.js?v=1"></script>' }]
-    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toEqual([])
+    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toStrictEqual([])
   })
 
   test('query が付いていなければ検出する', () => {
@@ -51,12 +51,12 @@ describe('findMissingQuery', () => {
 
   test('より長いファイル名の一部に一致しても検出しない', () => {
     const files = [{ fileName: 'assets/a.js', content: '//# sourceMappingURL=a.js.map' }]
-    expect(findMissingQuery(files, ['assets/a.js', 'a.js'], 'v=1')).toEqual([])
+    expect(findMissingQuery(files, ['assets/a.js', 'a.js'], 'v=1')).toStrictEqual([])
   })
 
   test('名前文字が直前にある場合は参照とみなさない', () => {
     const files = [{ fileName: 'assets/a.js', content: 'const x = "xassets/a.js"' }]
-    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toEqual([])
+    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toStrictEqual([])
   })
 
   test('画像アセットの参照も検出する', () => {
@@ -66,7 +66,7 @@ describe('findMissingQuery', () => {
 
   test('sourcemap ファイルは走査しない', () => {
     const files = [{ fileName: 'assets/a.js.map', content: '{"sources":["/assets/a.js"]}' }]
-    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toEqual([])
+    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toStrictEqual([])
   })
 
   test('行番号と桁番号を複数行で正しく計算する', () => {
@@ -84,7 +84,7 @@ describe('findMissingQuery', () => {
         content: '//#region tests/fixtures/basic/src/logo.svg\nconsole.log(1)',
       },
     ]
-    expect(findMissingQuery(files, ['logo.svg'], 'v=1')).toEqual([])
+    expect(findMissingQuery(files, ['logo.svg'], 'v=1')).toStrictEqual([])
   })
 
   test('引き続き検出する: <script src="...">', () => {
@@ -119,7 +119,7 @@ describe('findMissingQuery', () => {
         content: '<script src="https://cdn.example.com/assets/a.js?token=xyz&v=1"></script>',
       },
     ]
-    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toEqual([])
+    expect(findMissingQuery(files, ['assets/a.js'], 'v=1')).toStrictEqual([])
   })
 
   test('前方一致の query は未付与として検出する', () => {
