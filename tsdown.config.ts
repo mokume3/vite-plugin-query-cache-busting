@@ -19,8 +19,6 @@ export default defineConfig({
     profile: 'esm-only',
   },
   failOnWarn: 'ci-only',
-  // dts.generator: 'tsgo' を選ぶと rolldown-plugin-dts が毎回出す「実験的機能」の警告で、無害。
-  // 文言が版によって違うため両方に当てる
-  // （0.28 系: "TypeScript 7.0 does not yet have a stable API and is experimental."、0.29 系: "TypeScript Go is experimental."）
-  suppressWarnings: /TypeScript (?:7\.0 does not yet have a stable API and|Go) is experimental/,
+  // dts.generator: 'tsgo' を選ぶと rolldown-plugin-dts が毎回出す「実験的機能」の警告で、無害
+  suppressWarnings: /TypeScript Go is experimental/,
 })

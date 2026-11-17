@@ -15,22 +15,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.4
+      - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26.13.1
+          cache: pnpm
           registry-url: https://registry.npmjs.org
 
       - name: Ensure npm supports Trusted Publishing
         run: npm install -g npm@latest
 
-      - run: bun install --frozen-lockfile
-      - run: bun run check
-      - run: bun run test -- --run
-      - run: bun run build
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm run test -- --run
+      - run: pnpm run build
 
       - name: Verify tag matches package.json version
         if: github.event_name == 'push'

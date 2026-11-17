@@ -20,7 +20,7 @@ npm の Trusted Publisher（GitHub Actions を信頼済みの発行元として�
 2. ビルドします。
 
    ```bash
-   bun run build
+   pnpm run build
    ```
 
 3. 手動で公開します。これで npm 上にパッケージが誕生します。
@@ -49,7 +49,7 @@ npm の Trusted Publisher（GitHub Actions を信頼済みの発行元として�
 1. ローカルで以下を実行します。
 
    ```bash
-   bun run release
+   pnpm run release
    ```
 
 2. `bumpp` が対話形式でバージョンを聞いてきます（patch / minor / major などから選択）。
@@ -83,16 +83,16 @@ git tag -d v1.2.3
 git push origin :refs/tags/v1.2.3
 ```
 
-その後、正しいバージョンで `bun run release` をやり直します。
+その後、正しいバージョンで `pnpm run release` をやり直します。
 
-### `bun run check` やテストがコード側の問題で失敗した
+### `pnpm run check` やテストがコード側の問題で失敗した
 
 lint・フォーマット（`oxfmt --check`）・型チェック・テストのいずれかがコード側の問題で失敗した場合、GitHub の Actions タブから「Re-run all jobs」をしても直りません。ワークフロー実行はトリガー時点のコミット（`headSha`）に固定されていて、`actions/checkout` はその同じコミットを何度でもチェックアウトし直すだけだからです。後から main に修正を push しても、古い実行の rerun には反映されません。
 
 対応手順:
 
-1. main 上でコードを修正し、ローカルで `bun run check && bun run test -- --run` が通ることを確認する
-2. 失敗したタグと同じバージョンは再利用できないため、`bun run release` で新しいバージョン（例: v0.2.0 が失敗したなら v0.2.1）を切り直す
+1. main 上でコードを修正し、ローカルで `pnpm run check && pnpm run test -- --run` が通ることを確認する
+2. 失敗したタグと同じバージョンは再利用できないため、`pnpm run release` で新しいバージョン（例: v0.2.0 が失敗したなら v0.2.1）を切り直す
 3. 新しいタグの push で Publish ワークフローが最初から走る
 
 dry-run（`workflow_dispatch`）が同じ理由で失敗した場合は、rerun ではなく次のコマンドで新規に dispatch し直してください。その時点の main の先端（修正後のコミット）が使われます。
