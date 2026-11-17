@@ -11,7 +11,7 @@ describe('basic fixture', () => {
   test('出力ファイル名にハッシュが付かない', async () => {
     const files = await buildFixture(basicRoot, { version: 'testver' })
 
-    expect(files.map((file) => file.fileName).toSorted()).toEqual([
+    expect(files.map((file) => file.fileName).toSorted()).toStrictEqual([
       'assets/index.css',
       'assets/index.js',
       'assets/lazy.css',
@@ -111,7 +111,7 @@ describe('basic fixture', () => {
     const first = await buildFixture(basicRoot, { version: 'aaa' })
     const second = await buildFixture(basicRoot, { version: 'bbb' })
 
-    expect(first.map((file) => file.fileName)).toEqual(second.map((file) => file.fileName))
+    expect(first.map((file) => file.fileName)).toStrictEqual(second.map((file) => file.fileName))
 
     for (const [index, file] of first.entries()) {
       expect(file.content.replaceAll('v=aaa', 'v=QUERY')).toBe(

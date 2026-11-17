@@ -27,7 +27,7 @@ describe('parseMajor', () => {
 
 describe('collectConfigIssues', () => {
   test('対応構成なら何も返さない', () => {
-    expect(collectConfigIssues(supported)).toEqual({ errors: [], warnings: [] })
+    expect(collectConfigIssues(supported)).toStrictEqual({ errors: [], warnings: [] })
   })
 
   test('base が "./" ならエラー', () => {
@@ -68,14 +68,14 @@ describe('collectConfigIssues', () => {
   })
 
   test('Vite 6/7 は対応構成として扱う(エラーにならない)', () => {
-    expect(collectConfigIssues({ ...supported, viteMajor: 6 }).errors).toEqual([])
-    expect(collectConfigIssues({ ...supported, viteMajor: 7 }).errors).toEqual([])
+    expect(collectConfigIssues({ ...supported, viteMajor: 6 }).errors).toStrictEqual([])
+    expect(collectConfigIssues({ ...supported, viteMajor: 7 }).errors).toStrictEqual([])
   })
 
   test('Vite 9 以上なら警告', () => {
     const { errors, warnings } = collectConfigIssues({ ...supported, viteMajor: 9 })
 
-    expect(errors).toEqual([])
+    expect(errors).toStrictEqual([])
     expect(warnings).toHaveLength(1)
     expect(warnings[0]?.message).toMatch(/unverified/)
   })

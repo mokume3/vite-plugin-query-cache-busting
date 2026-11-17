@@ -4,11 +4,11 @@ import { normalizeOptions } from '../src/options'
 
 describe('normalizeOptions', () => {
   test('未指定なら key は "v"、verify は "warn"', () => {
-    expect(normalizeOptions()).toEqual({ version: undefined, key: 'v', verify: 'warn' })
+    expect(normalizeOptions()).toStrictEqual({ version: undefined, key: 'v', verify: 'warn' })
   })
 
   test('指定した値をそのまま保持する', () => {
-    expect(normalizeOptions({ version: 'abc', key: 'ver', verify: 'error' })).toEqual({
+    expect(normalizeOptions({ version: 'abc', key: 'ver', verify: 'error' })).toStrictEqual({
       version: 'abc',
       key: 'ver',
       verify: 'error',

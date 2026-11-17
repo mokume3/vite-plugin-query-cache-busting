@@ -15,7 +15,7 @@ describe('worker fixture', () => {
   test('worker の出力ファイル名にもハッシュが付かない', async () => {
     const files = await buildFixture(root, { version: 'testver' })
 
-    expect(files.map((file) => file.fileName).toSorted()).toEqual([
+    expect(files.map((file) => file.fileName).toSorted()).toStrictEqual([
       'assets/index.js',
       'assets/worker.js',
       'index.html',
